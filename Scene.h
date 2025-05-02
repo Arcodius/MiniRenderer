@@ -2,12 +2,14 @@
 #include <vector>
 
 #include "Camera.h"
+#include "Light.h"
 #include "Mesh.h"
 #include "Object.h"
 
 class Scene {
 public:
 	std::vector<Object> objects;
+	std::vector<Light> lights;
 
 	Camera camera;
 

@@ -38,7 +38,7 @@ void Object::setScale(const Vec3& newScale) {
 
 void Object::setMesh(const std::string& meshPath) {
 	Mesh new_mesh;
-	bool success = ObjLoader::LoadFromFile("Resources/cube.obj", new_mesh);
+	bool success = ObjLoader::LoadFromFile(meshPath, new_mesh);
 	if (!success) {
 		return;
 	}

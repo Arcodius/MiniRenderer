@@ -2,7 +2,65 @@
 #include "Camera.h"
 #include "Math.h"
 
-Mat4 Camera::getViewMatrix() const {
+void Camera::setPerspective(bool option) {
+	ProjectionType type = option ? PERSPECTIVE : ORTHOGRAPHIC;
+	if (this->projectionType != type) {
+		this->projectionType = type;
+		isProjectionDirty = true;
+	}
+}
+
+// Aspect = width / height
+void Camera::setAspect(float aspect) {
+	if (this->aspect != aspect) {
+		this->aspect = aspect;
+		isProjectionDirty = true;
+	}
+	width = aspect;  // height = 1.0f
+}
+
+void Camera::setFovY(float fovY) {
+	if (this->fovY != fovY) {
+		this->fovY = fovY;
+		isProjectionDirty = true;
+	}
+}
+
+void Camera::setNearClip(float nearClip) {
+	if (this->n != nearClip) {
+		this->n = nearClip;
+		isProjectionDirty = true;
+	}
+}
+
+void Camera::setFarClip(float farClip) {
+	if (this->f != farClip) {
+		this->f = farClip;
+		isProjectionDirty = true;
+	}
+}
+
+void Camera::setPosition(const Vec3& position) {
+	if (this->position != position) {
+		this->position = position;
+		isViewDirty = true;
+		isProjectionDirty = true;
+	}
+}
+
+void Camera::setTarget(const Vec3& target) {
+	if (this->target != target) {
+		this->target = target;
+		isViewDirty = true;
+		isProjectionDirty = true;
+	}
+}
+
+// View = Rotate*Translate
+Mat4 Camera::getViewMatrix(){
+	if (!isViewDirty) {
+		return viewMatrix;
+	}
     Vec3 zAxis = (position - target).normalized(); // camera direction
     Vec3 xAxis = up.cross(zAxis).normalized();     // camera right
     Vec3 yAxis = zAxis.cross(xAxis);               // camera up
@@ -14,21 +72,63 @@ Mat4 Camera::getViewMatrix() const {
     view[3][0] = -xAxis.dot(position);
     view[3][1] = -yAxis.dot(position);
     view[3][2] = -zAxis.dot(position);
-
-    return view;
+	
+	isViewDirty = false;
+	viewMatrix = view;
+    return viewMatrix;
 }
 
-Mat4 Camera::getProjectionMatrix() const {
-    float f = 1.0f / tanf(fovY * 0.5f * 3.14159f / 180.0f);
-    Mat4 proj = Mat4::zero();
 
-    proj[0][0] = f / aspect;
-    proj[1][1] = f;
-    proj[2][2] = (farClip + nearClip) / (nearClip - farClip);
-    proj[2][3] = -1.0f;
-    proj[3][2] = (2 * farClip * nearClip) / (nearClip - farClip);
+Mat4 Camera::getProjectionMatrix() {
+	if (!isProjectionDirty) {
+		return projectionMatrix;
+	}
+    switch (projectionType) {
+        case PERSPECTIVE:
+		    projectionMatrix = _getPerspectiveMatrix();
+        case ORTHOGRAPHIC:
+			projectionMatrix = _getOrthographicMatrix();
+    }
+	isProjectionDirty = false;
+	return projectionMatrix;
+}
 
-    return proj;
+// Perspective projection: view space -> clip space -> NDC
+Mat4 Camera::_getPerspectiveMatrix(){
+    float tanHalfFovy = 1.0f / tan(RADIAN(fovY / 2.0f));
+	float rangeInv = 1.0f / (n - f);
+
+	Mat4 persp;
+	persp[0][0] = 1.0f / (aspect * tanHalfFovy);
+	persp[1][1] = 1.0f / tanHalfFovy;
+	persp[2][2] = -(f + n) / (f - n);
+	persp[2][3] = -1.0f;
+	persp[3][2] = -(2.0f * f * n) / (f - n);
+	persp[3][3] = 0.0f;
+
+	return persp;
+
+}
+
+Mat4 Camera::_getOrthographicMatrix(){
+	float halfWidth = width * 0.5f * zoomFactor;
+	float halfHeight = height * 0.5f * zoomFactor;
+
+	float l = position.x - halfWidth;
+	float r = position.x + halfWidth;
+	float b = position.y - halfHeight;
+	float t = position.y + halfHeight;
+
+	Mat4 ortho;
+	ortho[0][0] = 2.0f / (r - l);
+	ortho[1][1] = 2.0f / (t - b);
+	ortho[2][2] = -2.0f / (f - n);
+	ortho[3][0] = -(r + l) / (r - l);
+	ortho[3][1] = -(t + b) / (t - b);
+	ortho[3][2] = -(f + n) / (f - n);
+	ortho[3][3] = 1.0f;
+
+	return ortho;
 }
 
 void Camera::reset() {
@@ -37,6 +137,11 @@ void Camera::reset() {
 	up = Vec3(0, 1, 0);
 	fovY = 90.0f;
 	aspect = 1.0f;
-	nearClip = 0.1f;
-	farClip = 100.0f;
+	n = 0.1f;
+	f = 100.0f;
+	width = 1.0f;
+	height = 1.0f;
+
+	isViewDirty = true;
+	isProjectionDirty = true;
 }

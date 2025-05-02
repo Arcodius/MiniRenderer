@@ -36,7 +36,7 @@
     <ClInclude Include="Color.h">
       <Filter>Header Files\Core</Filter>
     </ClInclude>
-    <ClInclude Include="ImageBuffer.h">
+    <ClInclude Include="Buffer.h">
       <Filter>Header Files\Core</Filter>
     </ClInclude>
     <ClInclude Include="Ray.h">
@@ -66,6 +66,9 @@
     <ClInclude Include="Debug.h">
       <Filter>Header Files\Core</Filter>
     </ClInclude>
+    <ClInclude Include="Light.h">
+      <Filter>Header Files\Render</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MiniRenderer.cpp">
@@ -93,6 +96,9 @@
       <Filter>Header Files\Core</Filter>
     </ClCompile>
     <ClCompile Include="Object.cpp">
+      <Filter>Header Files\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="Light.cpp">
       <Filter>Header Files\Render</Filter>
     </ClCompile>
   </ItemGroup>

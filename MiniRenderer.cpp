@@ -4,18 +4,20 @@
 #include "MiniRenderer.h"
 
 #include "Camera.h"
-#include "ImageBuffer.h"
+#include "Buffer.h"
 #include "ObjLoader.h"
 #include "Renderer.h"
+#include "Scene.h"
 
 #define MAX_LOADSTRING 100
 
+//#define DEBUG_MODE
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 
-Renderer renderer(800, 600);
+Renderer renderer(720, 480);
 Scene scene;
 
 // Forward declarations of functions included in this code module:
@@ -33,6 +35,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // TODO: Place code here.
+#ifdef DEBUG_MODE
     // Initialize console for debugging
     AllocConsole();
     FILE* fp;
@@ -40,6 +43,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     freopen_s(&fp, "CONOUT$", "w", stderr);
     freopen_s(&fp, "CONIN$", "r", stdin);
     std::cout << "DEBUG: Console is open" << std::endl;
+#endif
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_MINIRENDERER, szWindowClass, MAX_LOADSTRING);
@@ -127,11 +131,18 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 // Initialize scenes by adding objects and setting up the camera
 void InitializeScene() {
     // TODO: load from config
-    Object cube;
-    cube.setMesh("Resources/torus.obj");    
-    cube.setPosition(Vec3(0, 0, -5));
-    
-    scene.addObject(cube);
+    //Object cube;
+    //cube.setMesh("Resources/cube.obj");    
+    //cube.setPosition(Vec3(0, -1, 0));
+    //cube.setRotation(Vec3(0, 1.5, 0));
+    //scene.addObject(cube);
+    Object cone;
+    cone.setMesh("Resources/cone.obj");
+    cone.setPosition(Vec3(0, 0, 1));
+    cone.setRotation(Vec3(0, 0, 0));
+    cone.setScale(Vec3(0.5, 0.5, 0.5));
+    scene.addObject(cone);
+    scene.camera.setPerspective(true);
 }
 
 //
@@ -165,9 +176,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 InvalidateRect(hWnd, NULL, TRUE);
                 break;
             case ID_CAMERA_MOVEFORAWRD:
-                scene.camera.position = scene.camera.position + (scene.camera.target - scene.camera.position).normalized() * 0.2f;
-				InvalidateRect(hWnd, NULL, TRUE);
-				break;
+            {
+                // TODO: CHANGE TO A MOVE MATRIX
+                Vec3 position = scene.camera.getPosition();
+                Vec3 target = scene.camera.getTarget();
+                scene.camera.setPosition(position + (target - position).normalized() * 0.5f);
+                InvalidateRect(hWnd, NULL, TRUE);
+                break;
+            }
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
@@ -219,7 +235,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 // Test functions
 void test_draw_buffer(HDC hdc)
 {
-    ImageBuffer framebuffer(800, 600);
+    Buffer<Color> framebuffer(800, 600);
 
     // 在 InitInstance() 或 main loop 中初始化
     framebuffer.clear(Color(100, 149, 237)); // Cornflower Blue
