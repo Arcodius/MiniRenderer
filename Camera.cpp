@@ -145,3 +145,54 @@ void Camera::reset() {
 	isViewDirty = true;
 	isProjectionDirty = true;
 }
+
+void Camera::handleKeyPress(char wParam, float deltaTime) {
+	const float velocity = moveSpeed * deltaTime;
+	switch (wParam) {
+		case 'W': moveForward(velocity); break;
+		case 'S': moveForward(-velocity); break;
+		case 'A': moveRight(-velocity); break;
+		case 'D': moveRight(velocity); break;
+	}
+}
+
+void Camera::moveForward(float amount) {
+	Vec3 forward = (target - position).normalized();
+	position += forward * amount;
+	target += forward * amount;
+
+	isViewDirty = true;
+	isProjectionDirty = true;
+}
+
+void Camera::moveRight(float amount) {
+	Vec3 forward = (target - position).normalized();
+	Vec3 right = up.cross(forward).normalized();
+	position += right * amount;
+	target += right * amount;
+
+	isViewDirty = true;
+	isProjectionDirty = true;
+}
+
+// Rotate the camera around the target point
+void Camera::rotate(float yaw, float pitch) {
+	Vec3 forward = (target - position).normalized();
+	float radius = (target - position).length();
+
+	float theta = atan2(forward.z, forward.x);
+	float phi = asin(forward.y);
+
+	theta += yaw;
+	phi += pitch;
+	phi = CLAMP(phi, -PI / 2 + 0.1f, PI / 2 - 0.1f);
+
+	forward.x = cos(phi) * cos(theta);
+	forward.y = sin(phi);
+	forward.z = cos(phi) * sin(theta);
+
+	target = position + forward * radius;
+
+	isViewDirty = true;
+	isProjectionDirty = true;
+}

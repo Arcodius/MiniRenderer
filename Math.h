@@ -1,17 +1,17 @@
 #pragma once
 #include <array>
-#include <cmath>
+#include <cmath> // ”√”⁄ sin/cos
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+
+#define NOMINMAX
 
 #define PI 3.14159265358979323846f
 #define EPSILON 1e-6f
 #define RADIAN(degree) ((degree) * PI / 180.0f)
 #define DEGREE(radian) ((radian) * 180.0f / PI)
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-
+#define CLAMP(value, min, max) ((value) < (min) ? (min) : ((value) > (max) ? (max) : (value)))
 struct Vec2 {
     float x, y;
     Vec2() : x(0), y(0) {}
@@ -56,6 +56,7 @@ struct Vec2 {
 struct Vec3 {
 	float x, y, z;
 	Vec3() : x(0), y(0), z(0) {}
+    Vec3(float x) : x(x), y(x), z(x) {}
 	Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
 
 	float length() const {
@@ -83,42 +84,19 @@ struct Vec3 {
 		}
 		return Vec3(x / scalar, y / scalar, z / scalar);
 	}
-    bool operator==(const Vec3& other) const {
-		return std::abs(x - other.x) < EPSILON && std::abs(y - other.y) < EPSILON && std::abs(z - other.z) < EPSILON;
-	}
-    bool operator!=(const Vec3& other) const {
-		return !(*this == other);
-	}
+    bool operator==(const Vec3& other) const;
+    bool operator!=(const Vec3& other) const;
+    Vec3& operator+=(const Vec3& other);
 
-	float dot(const Vec3& other) const {
-		return x * other.x + y * other.y + z * other.z;
-	}
-
-	Vec3 cross(const Vec3& other) const {
-		return Vec3(
-			y * other.z - z * other.y,
-			z * other.x - x * other.z,
-			x * other.y - y * other.x
-		);
-	}
-
-	Vec3 normalized() const {
-		float len = length();
-		return (len > 0) ? *this / len : Vec3(0, 0, 0);
-	}
+    float dot(const Vec3& other) const;
+    Vec3 cross(const Vec3& other) const;
+    Vec3 normalized() const;
+    Vec3 clamp(const float MINVal, const float MAXVal) const;
 
     friend std::ostream& operator<<(std::ostream& os, const Vec3& v) {
         os << "(" << v.x << ", " << v.y << ", " << v.z << ")";
         return os;
     }
-
-    Vec3 clamp(const float MINVal, const float MAXVal) const {
-		return Vec3(
-			MAX(MINVal, MIN(MAXVal, x)),
-			MAX(MINVal, MIN(MAXVal, y)),
-			MAX(MINVal, MIN(MAXVal, z))
-		);
-	}
 };
 
 struct Vec4 {
@@ -306,3 +284,5 @@ struct Mat4 {
 inline Mat4 operator*(float scalar, const Mat4& mat) {
     return mat * scalar;
 }
+
+bool insideTriangle(const Vec3& p, const Vec3& a, const Vec3& b, const Vec3& c);

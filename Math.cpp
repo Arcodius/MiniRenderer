@@ -1,5 +1,42 @@
 #include "Math.h"
-#include <cmath> // 用于 sin/cos
+
+
+bool Vec3::operator==(const Vec3& other) const {
+    return std::abs(x - other.x) < EPSILON && std::abs(y - other.y) < EPSILON && std::abs(z - other.z) < EPSILON;
+}
+bool Vec3::operator!=(const Vec3& other) const {
+    return !(*this == other);
+}
+Vec3& Vec3::operator+=(const Vec3& other) {
+    x += other.x;
+    y += other.y;
+    z += other.z;
+    return *this;
+}
+float Vec3::dot(const Vec3& other) const {
+    return x * other.x + y * other.y + z * other.z;
+}
+
+Vec3 Vec3::cross(const Vec3& other) const {
+    return Vec3(
+        y * other.z - z * other.y,
+        z * other.x - x * other.z,
+        x * other.y - y * other.x
+    );
+}
+
+Vec3 Vec3::normalized() const {
+    float len = length();
+    return (len > 0) ? *this / len : Vec3(0, 0, 0);
+}
+
+Vec3 Vec3::clamp(const float MINVal, const float MAXVal) const {
+    return Vec3(
+        (std::max)(MINVal, (std::min)(MAXVal, x)),
+        (std::max)(MINVal, (std::min)(MAXVal, y)),
+        (std::max)(MINVal, (std::min)(MAXVal, z))
+    );
+}
 
 
 Vec4& Vec4::operator+=(const Vec4& other) {
@@ -62,7 +99,7 @@ Mat4 Mat4::operator*(const Mat4& other) const {
 }
 
 std::ostream& operator<<(std::ostream& os, const Vec4& v) {
-    os << L"(" << v.x << L", " << v.y << L", " << v.z << L")";
+    os << "(" << v.x << ", " << v.y << ", " << v.z << ")";
     return os;
 }
 
@@ -126,4 +163,28 @@ Mat4& Mat4::scale(const Vec3& scale) {
     scaleMat[2][2] = scale.z; // 第2列第2行（sz）
     *this = *this * scaleMat; // 右乘（列优先）
     return *this;
+}
+
+bool insideTriangle(const Vec3& p, const Vec3& a, const Vec3& b, const Vec3& c) {
+	// 使用重心坐标法判断点p是否在三角形abc内
+	Vec3 ab = b - a;
+	Vec3 ac = c - a;
+	Vec3 ap = p - a;
+
+	float d00 = ab.dot(ab);
+	float d01 = ab.dot(ac);
+	float d11 = ac.dot(ac);
+	float d20 = ap.dot(ab);
+	float d21 = ap.dot(ac);
+
+	float denom = d00 * d11 - d01 * d01;
+	if (denom == 0) return false; // 三角形退化
+
+	float v = (d11 * d20 - d01 * d21) / denom;
+	if (v < 0 || v > 1) return false;
+
+	float w = (d00 * d21 - d01 * d20) / denom;
+	if (w < 0 || v + w > 1) return false;
+
+	return true;
 }

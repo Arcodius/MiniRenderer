@@ -1,6 +1,7 @@
 #pragma once
 #include "Math.h"
 
+
 class Camera {
 private:
     Vec3 position;
@@ -20,6 +21,8 @@ private:
     bool isViewDirty = true;
     bool isProjectionDirty = true;
 
+    float moveSpeed = 0.5f;
+
     Mat4 _getPerspectiveMatrix();
 	Mat4 _getOrthographicMatrix();
 
@@ -32,7 +35,7 @@ public:
     
 
     Camera()
-        : position(0, 0, 5), target(0, 0, 0), up(0, 1, 0), fovY(90.0f), aspect(1.0f), 
+        : position(0, 0, 5), target(0, 0, 0), up(0, 1, 0), fovY(45.0f), aspect(1.0f), 
         n(0.1f), f(100.0f), width(1.0f), height(1.0f), projectionType(PERSPECTIVE) {}
 
     void reset();
@@ -53,4 +56,9 @@ public:
 	void setNearClip(float nearClip);
 	void setFarClip(float farClip);
     void setPerspective(bool option);
+
+    void handleKeyPress(char wParam, float deltaTime);
+    void moveForward(float amount);
+    void moveRight(float amount);
+    void rotate(float yaw, float pitch);
 };

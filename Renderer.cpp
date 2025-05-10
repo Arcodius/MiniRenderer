@@ -4,7 +4,7 @@
 //#include "Debug.h"
 //#define DEBUG_MODE
 
-void Renderer::_drawFilledTriangle(Vec3 v0, Vec3 v1, Vec3 v2, uint32_t color, int w, int h) {
+void Renderer::_drawTriangleFilled(Vec3 v0, Vec3 v1, Vec3 v2, uint32_t color, int w, int h) {
 	#ifdef DEBUG_MODE
 	std::cout << "Triangle: v0: " << v0.x << ", " << v0.y << ", " << v0.z << std::endl;
 	std::cout << "Triangle: v1: " << v1.x << ", " << v1.y << ", " << v1.z << std::endl;
@@ -31,8 +31,8 @@ void Renderer::_drawFilledTriangle(Vec3 v0, Vec3 v1, Vec3 v2, uint32_t color, in
 			float z = left.z + t * (right.z - left.z);
 
 			int idx = y * w + x;
-			if (z < depthbuffer[idx]) {
-				depthbuffer[idx] = z;
+			if (z < zbuffer[idx]) {
+				zbuffer[idx] = z;
 				framebuffer[idx] = color;
 			}
 		}
@@ -56,20 +56,56 @@ void Renderer::_drawFilledTriangle(Vec3 v0, Vec3 v1, Vec3 v2, uint32_t color, in
 	}
 }
 
+// v: vertex
+// s: point in screen space
+// w: world space position
+void Renderer::_drawTrianglePhong(
+	const Vertex& v0, const Vertex& v1, const Vertex& v2,
+	const Vec3& w0, const Vec3& w1, const Vec3& w2,
+	const Vec3& s0, const Vec3& s1, const Vec3& s2,
+	const std::vector<std::shared_ptr< Light >> &light, const Camera& camera, const Vec3& baseColor) {
+
+	// Calculate bounding box
+	int minX = (std::max)(0, (int)std::floor((std::min)({ s0.x, s1.x, s2.x })));
+	int maxX = (std::min)(screenWidth - 1, (int)std::ceil((std::max)({ s0.x, s1.x, s2.x })));
+	int minY = (std::max)(0, (int)std::floor((std::min)({ s0.y, s1.y, s2.y })));
+	int maxY = (std::min)(screenHeight - 1, (int)std::ceil((std::max)({ s0.y, s1.y, s2.y })));
+
+	float area = (s1 - s0).cross(s2 - s0).z;
+	if (-EPSILON < area && area < EPSILON) return; // Degenerate triangle
+
+	for (int y = minY; y <= maxY; ++y) {
+		for (int x = minX; x <= maxX; ++x) {
+			Vec3 p(x + 0.5f, y + 0.5f, 0.0);
+			if (insideTriangle(p, s0, s1, s2)) {
+				float a = ((s1 - p).cross(s2 - p)).z / area;
+				float b = ((s2 - p).cross(s0 - p)).z / area;
+				float c = ((s0 - p).cross(s1 - p)).z / area;
+				float z = a * w0.z + b * w1.z + c * w2.z;  // p's z value of world position
+				int idx = y * screenWidth + x;
+				if (z < zbuffer[idx]) {
+					zbuffer[idx] = z;
+					Vec3 pos = a * w0 + b * w1 + c * w2; // p's world position
+					Vec3 normal = a * v0.normal + b * v1.normal + c * v2.normal; // p's normal
+					Vec2 uv = a * v0.uv + b * v1.uv + c * v2.uv; // p's uv
+					Vec3 color = _computePhongColor(pos, normal, light[0], camera.getPosition(), baseColor);
+					framebuffer[idx] = Color::VecToUint32(color);
+				}
+			}
+		}
+	}
+}
+
 void Renderer::clearBuffers() {
 	framebuffer.clear(0xFF000000); // Clear to black
-	depthbuffer.clear(1.0f); // Clear depth buffer to max depth
+	zbuffer.clear(1.0f); // Clear depth buffer to max depth
 }
 
 // viewport transform: from NDC to window
-Vec3 ProjectToScreen(const Vec3& v, const Mat4& mvp, int w, int h) {
+Vec3 Renderer::_ProjectToScreen(const Vec3& v, const Mat4& mvp, int w, int h) {
 	// local -> world -> view -> clip
 	Vec4 p = mvp * Vec4(v, 1.0f);
-	//// view clipping
-	//if (p.x < -p.w || p.x > p.w || p.y < -p.w || p.y > p.w || p.z < -p.w || p.z > p.w)
-	//{
-	//	return {}; // drop the vertex
-	//}
+
 	// clip -> NDC
 	if (p.w < EPSILON) return Vec3{ 0, 0, 0 }; // ·ÀÖ¹³ýÒÔ0
 	else p /= p.w;
@@ -82,6 +118,9 @@ Vec3 ProjectToScreen(const Vec3& v, const Mat4& mvp, int w, int h) {
 }
 
 void Renderer::render(HDC hdc, Scene scene) {
+	// repaint
+	clearBuffers();
+
 	Mat4 projectionMatrix = scene.camera.getProjectionMatrix();
 	Mat4 vp;
 	if (scene.camera.projectionType == Camera::PERSPECTIVE) {
@@ -93,38 +132,36 @@ void Renderer::render(HDC hdc, Scene scene) {
 		vp = projectionMatrix;
 	}
 	
-
 	for (Object& object : scene.objects) {
 		Mat4 modelMatrix = object.getMatrix();
 		Mat4 mvp = vp * modelMatrix;
 
 		const Mesh& mesh = object.getMesh();
-
 		const std::vector<Vertex>& vertices = mesh.vertices;
 		const std::vector<unsigned int>& indices = mesh.indices;
+		
+		// world positions
+		std::vector<Vec3> wPos(vertices.size());
+		for (size_t i = 0; i < vertices.size(); i++) {
+			Vec4 w4 = modelMatrix * Vec4(vertices[i].position, 1.0f);
+			wPos[i] = Vec3(w4.x, w4.y, w4.z);
+		}
+		// screen positions
+		std::vector<Vec3> sPos(vertices.size());
+		for (size_t i = 0; i < vertices.size(); i++) {
+			sPos[i] = _ProjectToScreen(vertices[i].position, mvp, screenWidth, screenHeight);
+		}
 
+		Vec3 baseColor = Vec3(0.2f, 0.4f, 0.6f);
 		for (size_t i = 0; i < indices.size(); i += 3) {
-			#ifdef DEBUG_MODE
-			std::cout << "v0: " << vertices[indices[i]].position << std::endl;
-			std::cout << "v1: " << vertices[indices[i + 1]].position << std::endl;
-			std::cout << "v2: " << vertices[indices[i + 2]].position << std::endl << std::endl;
-			#endif
-			Vec3 v0 = ProjectToScreen(vertices[indices[i]].position, mvp, screenWidth, screenHeight);
-			Vec3 v1 = ProjectToScreen(vertices[indices[i + 1]].position, mvp, screenWidth, screenHeight);
-			Vec3 v2 = ProjectToScreen(vertices[indices[i + 2]].position, mvp, screenWidth, screenHeight);
-
-			if (_isBackFacing(v0, v1, v2)) continue;
-			_drawFilledTriangle(v0, v1, v2, 0xFFFFFF, screenWidth, screenHeight);
-
-#ifdef DEBUG_MODE
-			std::cout << "v0: " << v0.x << ", " << v0.y << ", " << v0.z << std::endl;
-			std::cout << "v1: " << v1.x << ", " << v1.y << ", " << v1.z << std::endl;
-			std::cout << "v2: " << v2.x << ", " << v2.y << ", " << v2.z << std::endl << std::endl;
-			MoveToEx(hdc, static_cast<int>(v0.x), static_cast<int>(v0.y), nullptr);
-			LineTo(hdc, static_cast<int>(v1.x), static_cast<int>(v1.y));
-			LineTo(hdc, static_cast<int>(v2.x), static_cast<int>(v2.y));
-			LineTo(hdc, static_cast<int>(v0.x), static_cast<int>(v0.y));
-#endif
+			if (_isBackFacing(sPos[indices[i]], sPos[indices[i + 1]], sPos[indices[i + 2]])) continue;
+			//_drawTriangleFilled(v0, v1, v2, 0xFFFFFF, screenWidth, screenHeight);
+			_drawTrianglePhong(
+				vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]],  // vertices (local position, normal, uv)
+				wPos[indices[i]], wPos[indices[i + 1]], wPos[indices[i + 2]], // world positions
+				sPos[indices[i]], sPos[indices[i + 1]], sPos[indices[i + 2]], // screen positions
+				scene.lights, scene.camera, baseColor
+			);
 		}
 	}
 	_presentToHDC(hdc, screenWidth, screenHeight);
@@ -158,14 +195,9 @@ void Renderer::_presentToHDC(HDC hdc, int w, int h) {
 	);
 }
 
-Vec3 computePhongColor(
-	const Vec3& pos,
-	const Vec3& normal,
-	const PointLight& light,
-	const Vec3& cameraPos,
-	const Vec3& baseColor)
+Vec3 Renderer::_computePhongColor(const Vec3& pos, const Vec3& normal, const std::shared_ptr<Light>& light, const Vec3& cameraPos, const Vec3& baseColor)
 {
-	Vec3 L = (light.position - pos).normalized();
+	Vec3 L = light->getDirection(pos);
 	Vec3 N = normal.normalized();
 	Vec3 V = (cameraPos - pos).normalized();
 	Vec3 R = (2.0f * N.dot(L) * N - L).normalized();
@@ -177,6 +209,6 @@ Vec3 computePhongColor(
 	Vec3 diffuse = diff * baseColor;
 	Vec3 specular = spec * Vec3{ 1,1,1 }; // white specular
 
-	Vec3 color = ambient + diffuse + specular;
+	Vec3 color = (ambient + diffuse + specular)*light->getIntensity(pos);
 	return color.clamp(0.0f, 1.0f);
 }

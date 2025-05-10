@@ -9,6 +9,7 @@
 #include "Renderer.h"
 #include "Scene.h"
 
+
 #define MAX_LOADSTRING 100
 
 //#define DEBUG_MODE
@@ -19,6 +20,8 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 
 Renderer renderer(720, 480);
 Scene scene;
+static bool keys[256] = { false };
+float FPS = 2.0f; // Frames per second
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -44,6 +47,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     freopen_s(&fp, "CONIN$", "r", stdin);
     std::cout << "DEBUG: Console is open" << std::endl;
 #endif
+    // Initialize the scene
+    scene = Scene();
+
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_MINIRENDERER, szWindowClass, MAX_LOADSTRING);
@@ -117,6 +123,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
+   SetTimer(hWnd, 1, FPS, NULL); // Set timer for key handling (32ms for 30 fps)
+
    if (!hWnd)
    {
       return FALSE;
@@ -126,23 +134,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    UpdateWindow(hWnd);
 
    return TRUE;
-}
-
-// Initialize scenes by adding objects and setting up the camera
-void InitializeScene() {
-    // TODO: load from config
-    //Object cube;
-    //cube.setMesh("Resources/cube.obj");    
-    //cube.setPosition(Vec3(0, -1, 0));
-    //cube.setRotation(Vec3(0, 1.5, 0));
-    //scene.addObject(cube);
-    Object cone;
-    cone.setMesh("Resources/cone.obj");
-    cone.setPosition(Vec3(0, 0, 1));
-    cone.setRotation(Vec3(0, 0, 0));
-    cone.setScale(Vec3(0.5, 0.5, 0.5));
-    scene.addObject(cone);
-    scene.camera.setPerspective(true);
 }
 
 //
@@ -157,6 +148,7 @@ void InitializeScene() {
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    static POINT lastMousePos;
     switch (message)
     {
     case WM_COMMAND:
@@ -189,19 +181,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
+    case WM_ERASEBKGND:
+        // Stop system processing, instead we handle repaint buffer in WM_PAINT
+        return 1;
     case WM_PAINT:
         {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
             
             //test_draw_buffer(hdc);
-            InitializeScene();
-
+            
             renderer.render(hdc, scene);
-
+            //scene.objects[0].rotate(Vec3(0.01f, 0.05f, 0.01f));
             EndPaint(hWnd, &ps);
         }
         break;
+    case WM_KEYDOWN:
+        keys[wParam] = true;
+        break;
+    case WM_KEYUP:
+        keys[wParam] = false;
+        break;
+    case WM_TIMER:
+        scene.camera.handleKeyPress(static_cast<char>(wParam), 1.0f/FPS);  // 30fps
+        InvalidateRect(hWnd, NULL, TRUE);
+        break;
+    case WM_MOUSEMOVE: {
+        int x = LOWORD(lParam);
+        int y = HIWORD(lParam);
+        if (wParam & MK_RBUTTON) {
+            float dx = (x - lastMousePos.x) * 0.01f;
+            float dy = (y - lastMousePos.y) * 0.01f;
+            scene.camera.rotate(dx, dy);
+            InvalidateRect(hWnd, NULL, TRUE);
+        }
+        lastMousePos.x = x;
+        lastMousePos.y = y;
+        break;
+    }
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
