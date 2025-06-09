@@ -2,42 +2,44 @@
 
 #include <SDL3/SDL_log.h>
 #include "ObjLoader.h"
+#include "MyMath.h"
 
 void Object::update() {
-	matrix = Mat4();
-    matrix = Mat4::translation(position) *
-             Mat4::rotationX(rotation.x) *
-             Mat4::rotationY(rotation.y) *
-             Mat4::rotationZ(rotation.z) *
-             Mat4::scale(scale);
+    glm::mat4 translationMatrix = glm::translate(glm::mat4(1.0f), position);
+    glm::mat4 rotationMatrix = glm::rotate(glm::mat4(1.0f), rotation.z, glm::vec3(0, 0, 1)) *
+                               glm::rotate(glm::mat4(1.0f), rotation.y, glm::vec3(0, 1, 0)) *
+                               glm::rotate(glm::mat4(1.0f), rotation.x, glm::vec3(1, 0, 0));
+    glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), scale);
+    matrix = translationMatrix * rotationMatrix * scaleMatrix;
 }
 
-void Object::translate(const Vec3& translation) {
+
+void Object::translate(const glm::vec3& translation) {
 	delta_position = translation;
 	update();
 }
 
-void Object::rotate(const Vec3& rotationDelta) {
+void Object::rotate(const glm::vec3& rotationDelta) {
 	delta_rotation = rotationDelta;
 	update();
 }
 
-void Object::resize(const Vec3& scaleDelta) {
+void Object::resize(const glm::vec3& scaleDelta) {
 	delta_scale = scaleDelta;
 	update();
 }
 
-void Object::setPosition(const Vec3& newPosition) {
+void Object::setPosition(const glm::vec3& newPosition) {
 	position = newPosition;
 	update();
 }
 
-void Object::setRotation(const Vec3& newRotation) {
+void Object::setRotation(const glm::vec3& newRotation) {
 	rotation = newRotation;
 	update();
 }
 
-void Object::setScale(const Vec3& newScale) {
+void Object::setScale(const glm::vec3& newScale) {
 	scale = newScale;
 	update();
 }

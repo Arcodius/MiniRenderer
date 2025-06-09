@@ -1,12 +1,12 @@
 #pragma once
-#include "Math.h"
+#include "MyMath.h"
 
 struct Vertex {
-	Vec3 position;
-	Vec3 normal;
-	Vec2 uv;
+	glm::vec3 position;
+	glm::vec3 normal;
+	glm::vec2 uv;
 
 	Vertex() : position(0, 0, 0), normal(0, 0, 0), uv(0, 0) {}
-	Vertex(const Vec3& pos, const Vec3& norm, const Vec2& tex)
+	Vertex(const glm::vec3& pos, const glm::vec3& norm, const glm::vec2& tex)
 		: position(pos), normal(norm), uv(tex) {}
 };

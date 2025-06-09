@@ -1,19 +1,19 @@
 // Camera/Camera.cpp
 #include "Camera.h"
-#include "Math.h"
+#include "MyMath.h"
 
 void Camera::updateCameraVectors() {
     // 从yaw和pitch计算front向量
-    float radYaw = deg2rad(yaw);
-    float radPitch = deg2rad(pitch);
-    front.x = cos(radPitch) * cos(radYaw);
-    front.y = sin(radPitch);
-    front.z = cos(radPitch) * sin(radYaw);
-    front = front.normalized();
+    float radYaw = glm::radians(yaw);
+    float radPitch = glm::radians(pitch);
+    front.x = glm::cos(radPitch) * glm::cos(radYaw);
+    front.y = glm::sin(radPitch);
+    front.z = glm::cos(radPitch) * glm::sin(radYaw);
+    front = glm::normalize(front);
 
     // 重新计算right和up
-    right = front.cross(worldUp).normalized();
-    up = right.cross(front).normalized();
+    right = glm::normalize(glm::cross(front, worldUp)); // 右向量
+    up = glm::normalize(glm::cross(right, front)); // 上向量
 
     // target保持与front一致
     target = position + front;
@@ -59,7 +59,7 @@ void Camera::setFarClip(float farClip) {
 	}
 }
 
-void Camera::setPosition(const Vec3& position) {
+void Camera::setPosition(const glm::vec3& position) {
 	if (this->position != position) {
 		this->position = position;
         updateCameraVectors();
@@ -68,7 +68,7 @@ void Camera::setPosition(const Vec3& position) {
 	}
 }
 
-void Camera::setTarget(const Vec3& target) {
+void Camera::setTarget(const glm::vec3& target) {
 	if (this->target != target) {
 		this->target = target;
 		isViewDirty = true;
@@ -77,24 +77,21 @@ void Camera::setTarget(const Vec3& target) {
 }
 
 // View = Rotate*Translate
-Mat4 Camera::getViewMatrix() {
+glm::mat4 Camera::getViewMatrix() {
     if (!isViewDirty) return viewMatrix;
 
-    Vec3 z = (position - target).normalized();  // camera forward
-    Vec3 x = up.cross(z).normalized();          // right
-    Vec3 y = z.cross(x);                        // up
+    glm::vec3 z = glm::normalize(position - target);  // camera forward
+    glm::vec3 x = glm::normalize(glm::cross(up, z));        // right
+    glm::vec3 y = glm::cross(z, x);                        // up
 
-    Mat4 view = Mat4::identity();
+    glm::mat4 view = glm::mat4(1.0f); // 初始化为单位矩阵
 
-    // rotation
-    view[0][0] = x.x; view[0][1] = y.x; view[0][2] = z.x;
-    view[1][0] = x.y; view[1][1] = y.y; view[1][2] = z.y;
-    view[2][0] = x.z; view[2][1] = y.z; view[2][2] = z.z;
-    // translation
-    view[3][0] = -x.dot(position);
-    view[3][1] = -y.dot(position);
-    view[3][2] = -z.dot(position);
-    view[3][3] = 1.0f;
+    // 填充视图矩阵
+    view[0][0] = x.x; view[1][0] = x.y; view[2][0] = x.z; view[3][0] = -glm::dot(x, position);
+    view[0][1] = y.x; view[1][1] = y.y; view[2][1] = y.z; view[3][1] = -glm::dot(y, position);
+    view[0][2] = z.x; view[1][2] = z.y; view[2][2] = z.z; view[3][2] = -glm::dot(z, position);
+    view[0][3] = 0.0f; view[1][3] = 0.0f; view[2][3] = 0.0f; view[3][3] = 1.0f;
+
 
     isViewDirty = false;
     viewMatrix = view;
@@ -102,7 +99,7 @@ Mat4 Camera::getViewMatrix() {
 }
 
 
-Mat4 Camera::getProjectionMatrix() {
+glm::mat4 Camera::getProjectionMatrix() {
 	if (!isProjectionDirty) {
 		return projectionMatrix;
 	}
@@ -114,7 +111,6 @@ Mat4 Camera::getProjectionMatrix() {
 			projectionMatrix = _getOrthographicMatrix();
             break;
         default:
-            throw std::runtime_error("Unknown projection type");
             break;
     }
 	isProjectionDirty = false;
@@ -122,23 +118,24 @@ Mat4 Camera::getProjectionMatrix() {
 }
 
 // Perspective projection: view space -> clip space -> NDC
-Mat4 Camera::_getPerspectiveMatrix(){
-    float tanHalfFovy = 1.0f / tan(RADIAN(fovY / 2.0f));
+glm::mat4 Camera::_getPerspectiveMatrix(){
+    float tanHalfFovy = 1.0f / tan(glm::radians(fovY / 2.0f));
 	float rangeInv = 1.0f / (n - f);
 
-    Mat4 persp = Mat4::identity();
-    persp[0][0] = 1.0f / (aspect * tanHalfFovy);
-    persp[1][1] = 1.0f / tanHalfFovy;
-    persp[2][2] = -(f + n) / (f - n);
-    persp[2][3] = -1.0f;
-    persp[3][2] = -(2.0f * f * n) / (f - n);
-    persp[3][3] = 0.0f;
+    glm::mat4 persp = glm::mat4(0.0f); // 初始化为零矩阵
+
+    persp[0][0] = 1.0f / (aspect * tanHalfFovy); // 第一列第一行
+    persp[1][1] = 1.0f / tanHalfFovy;           // 第二列第二行
+    persp[2][2] = -(f + n) * rangeInv;          // 第三列第三行
+    persp[2][3] = -1.0f;                        // 第三列第四行
+    persp[3][2] = -2.0f * f * n * rangeInv;     // 第四列第三行
+    
 
 	return persp;
 
 }
 
-Mat4 Camera::_getOrthographicMatrix(){
+glm::mat4 Camera::_getOrthographicMatrix(){
 	float halfWidth = width * 0.5f * zoomFactor;
 	float halfHeight = height * 0.5f * zoomFactor;
 
@@ -147,7 +144,7 @@ Mat4 Camera::_getOrthographicMatrix(){
 	float b = position.y - halfHeight;
 	float t = position.y + halfHeight;
 
-	Mat4 ortho;
+	glm::mat4 ortho;
 	ortho[0][0] = 2.0f / (r - l);
 	ortho[1][1] = 2.0f / (t - b);
 	ortho[2][2] = -2.0f / (f - n);
@@ -160,9 +157,9 @@ Mat4 Camera::_getOrthographicMatrix(){
 }
 
 void Camera::reset() {
-    position = Vec3(0, 0, 5);
-	target = Vec3(0, 0, 0);
-	up = Vec3(0, 1, 0);
+    position = glm::vec3(0, 0, 5);
+	target = glm::vec3(0, 0, 0);
+	up = glm::vec3(0, 1, 0);
 	fovY = 90.0f;
 	aspect = 1.0f;
 	n = 0.1f;
@@ -178,7 +175,7 @@ void Camera::processMouseMotion(float dx, float dy) {
     yaw += dx * mouseSensitivity;
     pitch -= dy * mouseSensitivity;
 
-    pitch = CLAMP(pitch, -89.0f, 89.0f);
+    pitch = glm::clamp(pitch, -89.0f, 89.0f);
 
     updateCameraVectors();
 }
@@ -192,7 +189,7 @@ void Camera::handleKeyPress(char wParam, float deltaTime) {
 }
 
 void Camera::moveForward(float amount) {
-	Vec3 forward = (target - position).normalized();
+	glm::vec3 forward = glm::normalize(target - position);
 	position += forward * amount;
 	target += forward * amount;
 
@@ -201,8 +198,8 @@ void Camera::moveForward(float amount) {
 }
 
 void Camera::moveRight(float amount) {
-	Vec3 forward = (target - position).normalized();
-	Vec3 right = up.cross(forward).normalized();
+	glm::vec3 forward = glm::normalize(target - position);
+	glm::vec3 right = glm::normalize(glm::cross(up, forward));
 	position += right * amount;
 	target += right * amount;
 
@@ -210,24 +207,3 @@ void Camera::moveRight(float amount) {
 	isProjectionDirty = true;
 }
 
-// Rotate the camera around the target point
-void Camera::rotate(float yaw, float pitch) {
-	Vec3 forward = (target - position).normalized();
-	float radius = (target - position).length();
-
-	float theta = atan2(forward.z, forward.x);
-	float phi = asin(forward.y);
-
-	theta += yaw;
-	phi += pitch;
-	phi = CLAMP(phi, -PI / 2 + 0.1f, PI / 2 - 0.1f);
-
-	forward.x = cos(phi) * cos(theta);
-	forward.y = sin(phi);
-	forward.z = cos(phi) * sin(theta);
-
-	target = position + forward * radius;
-
-	isViewDirty = true;
-	isProjectionDirty = true;
-}

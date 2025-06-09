@@ -1,6 +1,6 @@
 #pragma once
 #include "Color.h"
-#include "Math.h"
+#include "MyMath.h"
 
 class Light {
 public:
@@ -12,60 +12,60 @@ public:
     virtual ~Light() = default;
 
 	Color getColor() const { return color; }
-	virtual Vec3 getDirection(const Vec3& point) const = 0;
-	virtual float getIntensity(const Vec3& point) const = 0;
-	virtual float getDistance(const Vec3& point) const = 0;
+	virtual glm::vec3 getDirection(const glm::vec3& point) const = 0;
+	virtual float getIntensity(const glm::vec3& point) const = 0;
+	virtual float getDistance(const glm::vec3& point) const = 0;
 };
 
 class DirectionalLight : public Light {
 public:
-	Vec3 direction;
+	glm::vec3 direction;
 
-	DirectionalLight() : Light(), direction(Vec3(0.0f, -1.0f, 0.0f)) {}
-	DirectionalLight(const Color& color_, float intensity_, const Vec3& direction_)
+	DirectionalLight() : Light(), direction(glm::vec3(0.0f, -1.0f, 0.0f)) {}
+	DirectionalLight(const Color& color_, float intensity_, const glm::vec3& direction_)
 		: Light(color_, intensity_), direction(direction_) {}
 
-	Vec3 getDirection(const Vec3& point) const override {
-		return direction.normalized();
+	glm::vec3 getDirection(const glm::vec3& point) const override {
+		return glm::normalize(direction); // Directional light direction is constant
 	}
 
-	float getIntensity(const Vec3& point) const override {
+	float getIntensity(const glm::vec3& point) const override {
 		return intensity;
 	}
 
-    float getDistance(const Vec3& point) const override {
+    float getDistance(const glm::vec3& point) const override {
 		return 0.0f; // parallel light has no distance
 	}
 };
 
 class PointLight : public Light {
 public:
-	Vec3 position;
+	glm::vec3 position;
 	float range;
 
-	PointLight() : Light(), position(Vec3(0.0f, 0.0f, 0.0f)), range(1.0f) {}
-	PointLight(const Color& color_, float intensity_, const Vec3& position_, float range_)
+	PointLight() : Light(), position(glm::vec3(0.0f, 0.0f, 0.0f)), range(1.0f) {}
+	PointLight(const Color& color_, float intensity_, const glm::vec3& position_, float range_)
 		: Light(color_, intensity_), position(position_), range(range_) {}
 
-	Vec3 getDirection(const Vec3& point) const override {
-		return (point - position).normalized();
+	glm::vec3 getDirection(const glm::vec3& point) const override {
+		return glm::normalize(point - position);
 	}
 
-	float getIntensity(const Vec3& point) const override {
+	float getIntensity(const glm::vec3& point) const override {
 		float distance = getDistance(point);
 		//if (distance > range) return 0;
 		return intensity / (distance * distance);
 	}
 
-    float getDistance(const Vec3& point) const override {
+    float getDistance(const glm::vec3& point) const override {
         return (point - position).length();
     }
 };
 
 class SpotLight : public Light {
 public:
-    Vec3 position;      
-    Vec3 direction;     
+    glm::vec3 position;      
+    glm::vec3 direction;     
     float range;        
     float innerAngle;   
     float outerAngle;   
@@ -73,40 +73,40 @@ public:
 
     SpotLight()
         : Light(),
-        position(Vec3(0.0f)),
-        direction(Vec3(0.0f, -1.0f, 0.0f)),
+        position(glm::vec3(0.0f)),
+        direction(glm::vec3(0.0f, -1.0f, 0.0f)),
         range(10.0f),
         innerAngle(30.0f),
         outerAngle(45.0f),
         falloff(1.0f) {}
 
     SpotLight(const Color& color, float intensity,
-        const Vec3& position, const Vec3& direction,
+        const glm::vec3& position, const glm::vec3& direction,
         float range, float innerAngle, float outerAngle,
         float falloff = 1.0f)
         : Light(color, intensity),
         position(position),
-        direction(direction.normalized()),
+        direction(glm::normalize(direction)),
         range(range),
         innerAngle(innerAngle),
         outerAngle(outerAngle),
         falloff(falloff) {}
 
 
-    Vec3 getDirection(const Vec3& point) const override {
-        return (position - point).normalized();
+    glm::vec3 getDirection(const glm::vec3& point) const override {
+        return glm::normalize(position - point);
     }
 
 
-    float getIntensity(const Vec3& point) const override {
+    float getIntensity(const glm::vec3& point) const override {
 
         float distance = (position - point).length();
         if (distance > range) return 0.0f;
 
         float distanceAttenuation = 1.0f - (distance / range);
 
-        Vec3 lightDir = getDirection(point);
-        float cosTheta = direction.dot(lightDir);
+        glm::vec3 lightDir = getDirection(point);
+        float cosTheta = glm::dot(lightDir, direction);
 
 
         float cosInner = std::cos(innerAngle * 3.14159265f / 180.0f);
@@ -126,12 +126,12 @@ public:
         return  intensity * totalAttenuation;
     }
 
-    float getDistance(const Vec3& point) const override {
+    float getDistance(const glm::vec3& point) const override {
         return (position - point).length();
     }
 
-    void setDirection(const Vec3& newDirection) {
-        direction = newDirection.normalized();
+    void setDirection(const glm::vec3& newDirection) {
+        direction = glm::normalize(newDirection);
     }
 
     void setAngles(float newInnerAngle, float newOuterAngle) {

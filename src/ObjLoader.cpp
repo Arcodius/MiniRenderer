@@ -25,9 +25,9 @@ bool ObjLoader::LoadFromFile(const std::string& filename, Mesh& outMesh) {
     }
     
 
-    std::vector<Vec3> positions;
-    std::vector<Vec3> normals;
-    std::vector<Vec2> texcoords;
+    std::vector<glm::vec3> positions;
+    std::vector<glm::vec3> normals;
+    std::vector<glm::vec2> texcoords;
     std::unordered_map<std::string, unsigned int> uniqueVertexMap;
 
     std::string line;
@@ -68,9 +68,9 @@ bool ObjLoader::LoadFromFile(const std::string& filename, Mesh& outMesh) {
                 int tIdx = ti.empty() ? -1 : std::stoi(ti) - 1;
                 int nIdx = ni.empty() ? -1 : std::stoi(ni) - 1;
 
-                Vec3 pos = positions[vIdx];
-                Vec2 tex = tIdx >= 0 ? texcoords[tIdx] : Vec2(0, 0);
-                Vec3 norm = nIdx >= 0 ? normals[nIdx] : Vec3(0, 0, 1);
+                glm::vec3 pos = positions[vIdx];
+                glm::vec2 tex = tIdx >= 0 ? texcoords[tIdx] : glm::vec2(0, 0);
+                glm::vec3 norm = nIdx >= 0 ? normals[nIdx] : glm::vec3(0, 0, 1);
 
                 Vertex vert(pos, norm, tex);
                 outMesh.vertices.push_back(vert);

@@ -1,18 +1,18 @@
 #pragma once
-#include "Math.h"
+#include "MyMath.h"
 
 
 class Camera {
 private:
-    Vec3 position;
-    Vec3 target;
+    glm::vec3 position;
+    glm::vec3 target;
     
     float yaw = -90.0f;   // 初始朝向为-z
     float pitch = 0.0f;   // 初始无俯仰
-    Vec3 front = Vec3(0, 0, -1); // 相机朝向
-    Vec3 right;
-    Vec3 up;              // 相机上方向
-    Vec3 worldUp = Vec3(0, 1, 0);
+    glm::vec3 front = glm::vec3(0, 0, -1); // 相机朝向
+    glm::vec3 right;
+    glm::vec3 up;              // 相机上方向
+    glm::vec3 worldUp = glm::vec3(0, 1, 0);
 
     float fovY;      // in degrees
     float aspect;    // width / height
@@ -23,16 +23,16 @@ private:
     float height;
     float zoomFactor = 1.0f;
 
-    Mat4 viewMatrix;
-    Mat4 projectionMatrix;
+    glm::mat4 viewMatrix;
+    glm::mat4 projectionMatrix;
     bool isViewDirty = true;
     bool isProjectionDirty = true;
 
     float moveSpeed = 2.0f;
     float mouseSensitivity = 0.1f;
 
-    Mat4 _getPerspectiveMatrix();
-	Mat4 _getOrthographicMatrix();
+    glm::mat4 _getPerspectiveMatrix();
+	glm::mat4 _getOrthographicMatrix();
 
     void updateCameraVectors();
 
@@ -49,18 +49,18 @@ public:
         n(0.1f), f(100.0f), width(1.0f), height(1.0f), projectionType(PERSPECTIVE) {updateCameraVectors();}
 
     void reset();
-    Vec3 getPosition() const { return position; }
-    Vec3 getTarget() const { return target; }
-    Vec3 getUp() const { return up; }
+    glm::vec3 getPosition() const { return position; }
+    glm::vec3 getTarget() const { return target; }
+    glm::vec3 getUp() const { return up; }
     float getFovY() const { return fovY; }
     float getAspect() const { return aspect; }
     float getNearClip() const { return n; }
     float getFarClip() const { return f; }
-    Mat4 getViewMatrix();
-    Mat4 getProjectionMatrix();
+    glm::mat4 getViewMatrix();
+    glm::mat4 getProjectionMatrix();
     // TODO: set attributes -> update projection matrix -> update scene
-    void setPosition(const Vec3& position);
-    void setTarget(const Vec3& target);
+    void setPosition(const glm::vec3& position);
+    void setTarget(const glm::vec3& target);
 	void setAspect(float aspect);
 	void setFovY(float fovY);
 	void setNearClip(float nearClip);
@@ -71,5 +71,4 @@ public:
     void handleKeyPress(char wParam, float deltaTime);
     void moveForward(float amount);
     void moveRight(float amount);
-    void rotate(float yaw, float pitch);
 };

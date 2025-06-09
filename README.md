@@ -28,10 +28,33 @@ Implement a 3D scene renderer without relying on open-source rendering tools (e.
 
 ## CMake usage
 
-1. Create and change to build dir:
-mkdir build
-cd ./build
-2. run cmake command to init project config, and cmake would automatically scan the dev env of system:
+### **Build Instructions**
+
+#### **1. Create and Navigate to the Build Directory**  
+
+To initialize the build environment, execute the following commands in your terminal:  
+
+```bash
+mkdir -p build && cd ./build
+```  
+
+#### **2. Run CMake to Configure the Project**  
+
+CMake will automatically scan your system's development environment and generate the necessary build files. Run the following command:  
+
+```bash
 cmake ..
-3. cmake command to compile the project:
-cmkae --build .
+```  
+
+#### **3. Compile the Project**  
+
+Once the configuration is complete, build the project using the following command:  
+
+```bash
+cmake --build .
+```  
+
+可能的问题
+
+1. glm的点乘、*的混用
+2. 向量与mat的乘法顺序和符号

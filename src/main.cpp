@@ -46,34 +46,66 @@ int main(int argc, char* argv[])
     SDL_Event event{};
     bool keep_going = true;
     bool mouseRightButtonDown = false;
-    float lastMouseX = 0.0f, lastMouseY = 0.0f;
+    bool justEnteredRelativeMode = false; // first frame protection
+    const bool* keyboardState = SDL_GetKeyboardState(NULL); // 监控keyboard状态
+    
+    Uint64 lastTick = SDL_GetPerformanceCounter();
+    float deltaTime = 0.016f;
     while(keep_going){
+        // 在主循环内部，渲染循环的开始处
+        Uint64 currentTick = SDL_GetPerformanceCounter();
+        deltaTime = (float)(currentTick - lastTick) / (float)SDL_GetPerformanceFrequency();
+        lastTick = currentTick;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT ||
-               (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)) {
+            (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)) {
                 keep_going = false;
             }
-            if (event.button.button == SDL_BUTTON_RIGHT) {
-                if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-                    mouseRightButtonDown = true;
-                    lastMouseX = event.button.x;
-                    lastMouseY = event.button.y;
-                    SDL_SetWindowRelativeMouseMode(window, true);
-                } else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
-                    mouseRightButtonDown = false;
-                    SDL_SetWindowRelativeMouseMode(window, false);
-                }
+
+            // 右键按下启用相对鼠标模式
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_RIGHT) {
+                mouseRightButtonDown = true;
+                justEnteredRelativeMode = true;
+
+                SDL_SetWindowMouseGrab(window, true);
+                SDL_SetWindowRelativeMouseMode(window, true);
+
+                float _, __;
+                SDL_GetRelativeMouseState(&_, &__); // clear remaining delta
             }
-            if (event.type == SDL_EVENT_MOUSE_MOTION) {
-                if (mouseRightButtonDown) {
-                    scene.camera.processMouseMotion(event.motion.xrel, event.motion.yrel);
-                }
+            // 右键抬起取消相对鼠标模式
+            else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_RIGHT) {
+                mouseRightButtonDown = false;
+                SDL_SetWindowMouseGrab(window, false);
+                SDL_SetWindowRelativeMouseMode(window, false);
             }
-            if (event.type == SDL_EVENT_KEY_DOWN) {
-                if (mouseRightButtonDown) {
-                    scene.camera.handleKeyPress(event.key.key, 0.016f); // assuming 60fps
-                }
+        }
+
+        if (mouseRightButtonDown) {
+            float dx, dy;
+            SDL_GetRelativeMouseState(&dx, &dy);
+
+            if (!justEnteredRelativeMode) {
+                scene.camera.processMouseMotion(dx, dy);
+            } else {
+                justEnteredRelativeMode = false; // 跳过第一帧
             }
+        }
+
+        if (mouseRightButtonDown) { // 只有右键按下时才处理相机移动
+            if (keyboardState[SDL_SCANCODE_W]) {
+                scene.camera.handleKeyPress(SDLK_W, deltaTime);
+            }
+            if (keyboardState[SDL_SCANCODE_S]) {
+                scene.camera.handleKeyPress(SDLK_S, deltaTime);
+            }
+            if (keyboardState[SDL_SCANCODE_A]) {
+                scene.camera.handleKeyPress(SDLK_A, deltaTime);
+            }
+            if (keyboardState[SDL_SCANCODE_D]) {
+                scene.camera.handleKeyPress(SDLK_D, deltaTime);
+            }
+            // 添加其他你需要的按键处理
         }
 
         // rendering part
