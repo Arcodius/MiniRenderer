@@ -186,6 +186,9 @@ public:
 bool insideTriangle(const Vec3& p, const Vec3& a, const Vec3& b, const Vec3& c);
 float barycentricArea(const Vec3& a, const Vec3& b, const Vec3& c);
 
+float deg2rad(float degree);
+float rad2deg(float radian);
+
 std::ostream& operator<<(std::ostream& os, const Vec2& v);
 std::ostream& operator<<(std::ostream& os, const Vec3& v);
 std::ostream& operator<<(std::ostream& os, const Vec4& v);

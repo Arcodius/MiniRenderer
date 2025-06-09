@@ -2,6 +2,25 @@
 #include "Camera.h"
 #include "Math.h"
 
+void Camera::updateCameraVectors() {
+    // 从yaw和pitch计算front向量
+    float radYaw = deg2rad(yaw);
+    float radPitch = deg2rad(pitch);
+    front.x = cos(radPitch) * cos(radYaw);
+    front.y = sin(radPitch);
+    front.z = cos(radPitch) * sin(radYaw);
+    front = front.normalized();
+
+    // 重新计算right和up
+    right = front.cross(worldUp).normalized();
+    up = right.cross(front).normalized();
+
+    // target保持与front一致
+    target = position + front;
+    isViewDirty = true;
+}
+
+
 void Camera::setPerspective(bool option) {
 	ProjectionType type = option ? PERSPECTIVE : ORTHOGRAPHIC;
 	if (this->projectionType != type) {
@@ -43,6 +62,7 @@ void Camera::setFarClip(float farClip) {
 void Camera::setPosition(const Vec3& position) {
 	if (this->position != position) {
 		this->position = position;
+        updateCameraVectors();
 		isViewDirty = true;
 		isProjectionDirty = true;
 	}
@@ -154,14 +174,21 @@ void Camera::reset() {
 	isProjectionDirty = true;
 }
 
+void Camera::processMouseMotion(float dx, float dy) {
+    yaw += dx * mouseSensitivity;
+    pitch -= dy * mouseSensitivity;
+
+    pitch = CLAMP(pitch, -89.0f, 89.0f);
+
+    updateCameraVectors();
+}
+
 void Camera::handleKeyPress(char wParam, float deltaTime) {
-	const float velocity = moveSpeed * deltaTime;
-	switch (wParam) {
-		case 'W': moveForward(velocity); break;
-		case 'S': moveForward(-velocity); break;
-		case 'A': moveRight(-velocity); break;
-		case 'D': moveRight(velocity); break;
-	}
+	const float amount = moveSpeed * deltaTime;
+    if (wParam == 'w' || wParam == 'W') moveForward(amount);
+    else if (wParam == 's' || wParam == 'S') moveForward(-amount);
+    else if (wParam == 'a' || wParam == 'A') moveRight(amount);
+    else if (wParam == 'd' || wParam == 'D') moveRight(-amount);
 }
 
 void Camera::moveForward(float amount) {

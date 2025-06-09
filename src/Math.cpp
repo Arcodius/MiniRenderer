@@ -508,6 +508,13 @@ float barycentricArea(const Vec3& a, const Vec3& b, const Vec3& c) {
     return 0.5f * (b - a).cross(c - a).length();
 }
 
+float deg2rad(float degree){
+    return degree * (PI / 180.0f);
+}
+float rad2deg(float radian){
+    return radian * (180.0f / PI);
+}
+
 // Stream operators
 std::ostream& operator<<(std::ostream& os, const Vec2& v) {
     return os << "(" << v.x << ", " << v.y << ")";

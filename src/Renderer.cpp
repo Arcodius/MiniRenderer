@@ -99,8 +99,8 @@ void Renderer::_drawTrianglePhong(
                     zbuffer[idx] = z;
                     Vec3 pos = w0 * a + w1 * b + w2 * c;
                     Vec3 normal = (v0.normal * a + v1.normal * b + v2.normal * c).normalized();
-                    //Vec3 color = normal; // Debug：显示 normal，范围应该在 [-1,1]
-                    Vec3 color = _computePhongColor(pos, normal, lights[0], camera.getPosition(), baseColor);
+                    Vec3 color = normal; // Debug：显示 normal，范围应该在 [-1,1]
+                    //Vec3 color = _computePhongColor(pos, normal, lights[0], camera.getPosition(), baseColor);
 
                     framebuffer[idx] = Color::VecToUint32((color + Vec3(1.0f)) * 0.5f); // 映射 [-1,1] → [0,1]
                 }

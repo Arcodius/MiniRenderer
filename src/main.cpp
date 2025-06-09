@@ -45,12 +45,34 @@ int main(int argc, char* argv[])
     // Event loop
     SDL_Event event{};
     bool keep_going = true;
-
+    bool mouseRightButtonDown = false;
+    float lastMouseX = 0.0f, lastMouseY = 0.0f;
     while(keep_going){
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT ||
                (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)) {
                 keep_going = false;
+            }
+            if (event.button.button == SDL_BUTTON_RIGHT) {
+                if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+                    mouseRightButtonDown = true;
+                    lastMouseX = event.button.x;
+                    lastMouseY = event.button.y;
+                    SDL_SetWindowRelativeMouseMode(window, true);
+                } else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+                    mouseRightButtonDown = false;
+                    SDL_SetWindowRelativeMouseMode(window, false);
+                }
+            }
+            if (event.type == SDL_EVENT_MOUSE_MOTION) {
+                if (mouseRightButtonDown) {
+                    scene.camera.processMouseMotion(event.motion.xrel, event.motion.yrel);
+                }
+            }
+            if (event.type == SDL_EVENT_KEY_DOWN) {
+                if (mouseRightButtonDown) {
+                    scene.camera.handleKeyPress(event.key.key, 0.016f); // assuming 60fps
+                }
             }
         }
 

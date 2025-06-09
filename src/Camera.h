@@ -6,7 +6,14 @@ class Camera {
 private:
     Vec3 position;
     Vec3 target;
-    Vec3 up;
+    
+    float yaw = -90.0f;   // 初始朝向为-z
+    float pitch = 0.0f;   // 初始无俯仰
+    Vec3 front = Vec3(0, 0, -1); // 相机朝向
+    Vec3 right;
+    Vec3 up;              // 相机上方向
+    Vec3 worldUp = Vec3(0, 1, 0);
+
     float fovY;      // in degrees
     float aspect;    // width / height
 
@@ -21,10 +28,13 @@ private:
     bool isViewDirty = true;
     bool isProjectionDirty = true;
 
-    float moveSpeed = 0.5f;
+    float moveSpeed = 2.0f;
+    float mouseSensitivity = 0.1f;
 
     Mat4 _getPerspectiveMatrix();
 	Mat4 _getOrthographicMatrix();
+
+    void updateCameraVectors();
 
 public:
     enum ProjectionType {
@@ -35,8 +45,8 @@ public:
     
 
     Camera()
-        : position(0, 0, 5), target(0, 0, 0), up(0, 1, 0), fovY(45.0f), aspect(1.0f), 
-        n(0.1f), f(100.0f), width(1.0f), height(1.0f), projectionType(PERSPECTIVE) {}
+        : position(0, 0, 5), target(0, 0, 0), fovY(45.0f), aspect(1.0f), 
+        n(0.1f), f(100.0f), width(1.0f), height(1.0f), projectionType(PERSPECTIVE) {updateCameraVectors();}
 
     void reset();
     Vec3 getPosition() const { return position; }
@@ -57,6 +67,7 @@ public:
 	void setFarClip(float farClip);
     void setPerspective(bool option);
 
+    void processMouseMotion(float dx, float dy);
     void handleKeyPress(char wParam, float deltaTime);
     void moveForward(float amount);
     void moveRight(float amount);
