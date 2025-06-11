@@ -79,6 +79,10 @@ int main(int argc, char* argv[])
                 SDL_SetWindowMouseGrab(window, false);
                 SDL_SetWindowRelativeMouseMode(window, false);
             }
+            else if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+                float scrollY = static_cast<float>(event.wheel.y); // 正数为向上滚动，负数为向下
+                scene.camera.handleScroll(scrollY, deltaTime);
+            }
         }
 
         if (mouseRightButtonDown) {
@@ -107,6 +111,8 @@ int main(int argc, char* argv[])
             }
             // 添加其他你需要的按键处理
         }
+
+        
 
         // rendering part
         renderer.render(scene);

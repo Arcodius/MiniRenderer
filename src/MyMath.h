@@ -8,3 +8,4 @@
 
 #define EPSILON 1e-6f
 #define FLT_MAX 3.402823466e+38F
+#define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))

@@ -37,8 +37,8 @@ public:
 			Color(glm::vec3(1.0f, 1.0f, 0.3f)), 10.0f, glm::vec3(0.0f, 0.0f, 2.0f), 5.0f
 		));
 
-		camera.setPerspective(true);
-		camera.setFovY(90.0f);
+		camera.setPerspective(false);
+		camera.setFovY(75.0f);
 
         camera.setPosition(glm::vec3(2.0f));
         camera.setTarget(glm::vec3(0, 0, 2.0f));

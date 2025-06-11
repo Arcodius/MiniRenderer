@@ -143,20 +143,13 @@ void Renderer::render(Scene scene) {
 	clearBuffers();
     scene.camera.setAspect(static_cast<float>(screenWidth) / screenHeight);
 	glm::mat4 projectionMatrix = scene.camera.getProjectionMatrix();
-	
+	glm::mat4 viewMatrix = scene.camera.getViewMatrix();
+    
+    // 计算 MVP 矩阵
+    glm::mat4 vp = projectionMatrix * viewMatrix; // 注意这里是列主序矩阵乘法
 	for (Object& object : scene.objects) {
 		const glm::mat4 modelMatrix = object.getMatrix();
-		glm::mat4 mvp; 
-        switch (scene.camera.projectionType) {
-            case Camera::PERSPECTIVE:{
-                mvp = projectionMatrix * scene.camera.getViewMatrix() * modelMatrix;
-                break;
-            } 
-            case Camera::ORTHOGRAPHIC:{
-                mvp = projectionMatrix * modelMatrix;
-                break;
-            }   
-        }
+		glm::mat4 mvp = vp * modelMatrix; 
 
 		const Mesh& mesh = object.getMesh();
 		const std::vector<Vertex>& vertices = mesh.vertices;

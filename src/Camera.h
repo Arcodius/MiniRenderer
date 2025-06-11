@@ -21,7 +21,7 @@ private:
     float f;
     float width;
     float height;
-    float zoomFactor = 1.0f;
+    float zoomFactor = 5.f;
 
     glm::mat4 viewMatrix;
     glm::mat4 projectionMatrix;
@@ -71,4 +71,5 @@ public:
     void handleKeyPress(char wParam, float deltaTime);
     void moveForward(float amount);
     void moveRight(float amount);
+    void handleScroll(float scrollY, float deltaTime);
 };

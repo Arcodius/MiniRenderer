@@ -139,21 +139,25 @@ glm::mat4 Camera::_getOrthographicMatrix(){
 	float halfWidth = width * 0.5f * zoomFactor;
 	float halfHeight = height * 0.5f * zoomFactor;
 
-	float l = position.x - halfWidth;
-	float r = position.x + halfWidth;
-	float b = position.y - halfHeight;
-	float t = position.y + halfHeight;
+	// float l = position.x - halfWidth;
+	// float r = position.x + halfWidth;
+	// float b = position.y - halfHeight;
+	// float t = position.y + halfHeight;
+	float l = -halfWidth;
+	float r = halfWidth;
+	float b = -halfHeight;
+	float t = halfHeight;
 
-	glm::mat4 ortho;
+	glm::mat4 ortho(1.0f);
 	ortho[0][0] = 2.0f / (r - l);
 	ortho[1][1] = 2.0f / (t - b);
 	ortho[2][2] = -2.0f / (f - n);
 	ortho[3][0] = -(r + l) / (r - l);
 	ortho[3][1] = -(t + b) / (t - b);
 	ortho[3][2] = -(f + n) / (f - n);
-	ortho[3][3] = 1.0f;
 
 	return ortho;
+	// return glm::ortho(l, r, b, t, n, f);
 }
 
 void Camera::reset() {
@@ -207,3 +211,14 @@ void Camera::moveRight(float amount) {
 	isProjectionDirty = true;
 }
 
+void Camera::handleScroll(float scrollY, float deltaTime){
+	if (projectionType == PERSPECTIVE) {
+		float newFov = fovY - scrollY * 5.f * deltaTime; // 缩放速度可调
+		fovY = CLAMP(newFov, 10.0f, 120.0f); // 限制视角范围
+	} else {
+		float newZoom = zoomFactor * std::pow(0.9f, scrollY * deltaTime); // 每滚动一步缩放10%
+		zoomFactor = CLAMP(newZoom, 0.01f, 100.0f); // 限制缩放因子
+	}
+
+	isProjectionDirty = true;
+}

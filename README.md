@@ -13,13 +13,13 @@ Implement a 3D scene renderer without relying on open-source rendering tools (e.
     - ✅(1) Implement perspective projection.  
     - ✅(2) Enable scene navigation (rotation, translation, scaling).  
     - *Optional:*  
-      - ⏩(3) Implement orthographic projection.
+      - ✅(3) Implement orthographic projection.
 
 3. **Rendering**  
     - ✅(1) Include at least two triangle mesh models in the scene.  
     - ✅(2) Implement the Phong lighting model.  
     - (3) Implement a ray tracing algorithm.  
-    - (4) Implement texture mapping.  
+    - ✅(4) Implement texture mapping.  
     - *Optional:*  
       - (1) Implement area light sources.  
       - (2) Implement the BRDF reflection model.  
@@ -54,7 +54,6 @@ Once the configuration is complete, build the project using the following comman
 cmake --build .
 ```  
 
-可能的问题
+TODO
 
-1. glm的点乘、*的混用
-2. 向量与mat的乘法顺序和符号
+1. 光照计算似乎有点bug，角度位置不太对，可能是normal问题
