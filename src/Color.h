@@ -2,7 +2,7 @@
 #include <algorithm>
 #include "MyMath.h"
 
-class Color {
+class Color: public glm::vec3 {
 public:
 	unsigned char r, g, b;
 
@@ -37,6 +37,7 @@ public:
             | c.b;             // Blue
     }
 
+    // Convert from uint32_t pixel format (RGB) to Color(255)
     static Color Uint32ToColor(uint32_t pixel) {
         return Color{
             static_cast<unsigned char>((pixel >> 16) & 0xFF), // Red
@@ -46,7 +47,7 @@ public:
     }
 
     static uint32_t VecToUint32(const glm::vec3& v) {
-		return (0xFF << 24)    // Alpha (Ĭ�ϲ�͸�� 0xFF)
+		return (0xFF << 24)    // Alpha 
 			| (static_cast<uint32_t>(v.x * 255.0f) << 16) // Red
 			| (static_cast<uint32_t>(v.y * 255.0f) << 8)  // Green
 			| static_cast<uint32_t>(v.z * 255.0f);         // Blue

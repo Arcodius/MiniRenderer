@@ -1,7 +1,7 @@
 #include "Object.h"
 
 #include <SDL3/SDL_log.h>
-#include "ObjLoader.h"
+#include "ResourceLoader.h"
 #include "MyMath.h"
 
 void Object::update() {
@@ -46,7 +46,7 @@ void Object::setScale(const glm::vec3& newScale) {
 
 void Object::setMesh(const std::string& meshPath) {
 	Mesh new_mesh;
-	bool success = ObjLoader::LoadFromFile(meshPath, new_mesh);
+	bool success = ResourceLoader::loadMeshFromFile(meshPath, new_mesh);
 	if (!success) {
         SDL_Log("Failed to load mesh from file: %s", meshPath.c_str());
 		return;

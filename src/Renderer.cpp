@@ -1,5 +1,6 @@
 #include "Renderer.h"
 
+#include "ResourceLoader.h"
 #include "Scene.h"
 //#include "Debug.h"
 //#define DEBUG_MODE
@@ -58,10 +59,11 @@ void Renderer::_drawTriangleFilled(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, uin
 // s: point in screen space
 // w: world space position
 void Renderer::_drawTrianglePhong(
-    const Vertex& v0_, const Vertex& v1_, const Vertex& v2_,
     const glm::vec3& w0_, const glm::vec3& w1_, const glm::vec3& w2_,
     const glm::vec3& s0_, const glm::vec3& s1_, const glm::vec3& s2_,
-    const std::vector<std::shared_ptr<Light>>& lights, const Camera& camera, const glm::vec3& baseColor) {
+    glm::vec3 n0, glm::vec3 n1, glm::vec3 n2,
+    glm::vec2 uv0, glm::vec2 uv1, glm::vec2 uv2,
+    const std::vector<std::shared_ptr<Light>>& lights, const Camera& camera) {
 
     // 剔除 ProjectToScreen 返回的无效点
     if (s0_.x >= FLT_MAX || s1_.x >= FLT_MAX || s2_.x >= FLT_MAX) return;
@@ -69,13 +71,13 @@ void Renderer::_drawTrianglePhong(
     // 保证顺时针方向，防止 area 负值带来插值错误
     glm::vec3 s0 = s0_, s1 = s1_, s2 = s2_;
     glm::vec3 w0 = w0_, w1 = w1_, w2 = w2_;
-    Vertex v0 = v0_, v1 = v1_, v2 = v2_;
     float area = glm::cross(s1 - s0, s2 - s0).z;
     if (fabs(area) < EPSILON) return; // 退化三角形
     if (area < 0.0f) {
         std::swap(s1, s2);
         std::swap(w1, w2);
-        std::swap(v1, v2);
+        std::swap(n1, n2);
+        std::swap(uv1, uv2);
         area = -area;
     }
 
@@ -93,14 +95,19 @@ void Renderer::_drawTrianglePhong(
                 float c = (glm::cross(s0 - p, s1 - p)).z / area;
                 float z = a * s0.z + b * s1.z + c * s2.z;
                 int idx = y * screenWidth + x;
+                
                 if (z < zbuffer[idx]) {
                     zbuffer[idx] = z;
                     glm::vec3 pos = w0 * a + w1 * b + w2 * c;
-                    glm::vec3 normal = glm::normalize(v0.normal * a + v1.normal * b + v2.normal * c);
-                    glm::vec3 color = normal; // Debug：显示 normal，范围应该在 [-1,1]
-                    //glm::vec3 color = _computePhongColor(pos, normal, lights[0], camera.getPosition(), baseColor);
-
-                    framebuffer[idx] = Color::VecToUint32((color + glm::vec3(1.0f)) * 0.5f); // 映射 [-1,1] → [0,1]
+                    glm::vec3 normal = glm::normalize(n0 * a + n1 * b + n2 * c);
+                    glm::vec2 uv = uv0 * a + uv1 * b + uv2 * c;
+                    // glm::vec2 uv = glm::vec2(x, y);
+                    //glm::vec3 color = normal; // Debug：显示 normal，范围应该在 [-1,1]
+                    glm::vec3 baseColor = sampleTexture(textureData, uv, textureWidth, textureHeight);
+                    //printf("Pixel baseColor=(%.2f, %.2f, %.2f)\n", baseColor.x, baseColor.y, baseColor.z);
+                    glm::vec3 color = _computePhongColor(pos, normal, lights[0], camera.getPosition(), baseColor);
+                    // glm::vec3 color = baseColor;
+                    framebuffer[idx] = Color::VecToUint32(color); // 映射 [-1,1] → [0,1]
                 }
             }
         }
@@ -125,6 +132,7 @@ glm::vec3 Renderer::_ProjectToScreen(const glm::vec3& v, const glm::mat4& mvp, i
 
 
     glm::vec4 ndc = clip / clip.w;
+    ndc.z = (ndc.z + 1.0f) * 0.5f; // 归一化设备坐标 NDC [-1, 1] → [0, 1]
     float x = (ndc.x + 1.0f) * 0.5f * w;
     float y = (1.0f - ndc.y) * 0.5f * h; // Y 方向反转
     return glm::vec3(x, y, ndc.z);
@@ -164,21 +172,26 @@ void Renderer::render(Scene scene) {
 		std::vector<glm::vec3> sPos(vertices.size());
 		for (size_t i = 0; i < vertices.size(); i++) {
 			sPos[i] = _ProjectToScreen(vertices[i].position, mvp, screenWidth, screenHeight);
+            //printf("(%f) ", sPos[i].z);
 		}
 
-		glm::vec3 baseColor = glm::vec3(0.2f, 0.4f, 0.6f);
-        for (int i = 0; i < 6; i++) {
-            for (size_t i = 0; i < indices.size(); i += 3) {
-                
-                if (_isBackFacing(sPos[indices[i]], sPos[indices[i + 1]], sPos[indices[i + 2]])) continue;
-                // _drawTriangleFilled(vertices[indices[i]].position, vertices[indices[i + 1]].position, vertices[indices[i + 2]].position, 0xFFFFFF, screenWidth, screenHeight);
-                _drawTrianglePhong(
-                    vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]],  // vertices (local position, normal, uv)
-                    wPos[indices[i]], wPos[indices[i + 1]], wPos[indices[i + 2]], // world positions
-                    sPos[indices[i]], sPos[indices[i + 1]], sPos[indices[i + 2]], // screen positions
-                    scene.lights, scene.camera, baseColor
-                );
-            }
+        // normal projection
+        std::vector<glm::vec3> vNormals(vertices.size());
+        for (size_t i = 0; i < vertices.size(); i++) {
+            vNormals[i] = glm::vec3(modelMatrix * glm::vec4(vertices[i].normal, 0.0f)); // 只需要旋转，不需要平移
+        }
+
+
+        for (size_t i = 0; i < indices.size(); i += 3) {
+            if (_isBackFacing(sPos[indices[i]], sPos[indices[i + 1]], sPos[indices[i + 2]])) continue;
+            // _drawTriangleFilled(vertices[indices[i]].position, vertices[indices[i + 1]].position, vertices[indices[i + 2]].position, 0xFFFFFF, screenWidth, screenHeight);
+            _drawTrianglePhong(
+                wPos[indices[i]], wPos[indices[i + 1]], wPos[indices[i + 2]], // world positions
+                sPos[indices[i]], sPos[indices[i + 1]], sPos[indices[i + 2]], // screen positions
+                vNormals[indices[i]], vNormals[indices[i + 1]], vNormals[indices[i + 2]], // normals
+                vertices[indices[i]].uv, vertices[indices[i + 1]].uv, vertices[indices[i + 2]].uv, // texture coordinates
+                scene.lights, scene.camera
+            );
         }
     }
 }
@@ -212,4 +225,30 @@ glm::vec3 Renderer::_computePhongColor(const glm::vec3& pos, const glm::vec3& no
 
 	glm::vec3 color = (ambient + diffuse + specular)*light->getIntensity(pos);
 	return glm::clamp(color, 0.0f, 1.0f);
+}
+
+glm::vec3 Renderer::sampleTexture(const std::vector<uint32_t>& textureData, glm::vec2 uv, int texWidth, int texHeight) {
+    int texX = std::clamp(int(uv.x * texWidth), 0, texWidth - 1);
+    int texY = std::clamp(int(uv.y * texHeight), 0, texHeight - 1);
+    return Color::Uint32ToVec(textureData[texY * texWidth + texX]); // 纹理采样
+}
+
+Renderer::Renderer(int width, int height){
+    screenWidth = width;
+    screenHeight = height;
+    framebuffer = Buffer<uint32_t>(width, height);
+    zbuffer = Buffer<float>(width, height);
+    clearBuffers();
+    textureWidth = 256;
+    textureHeight = 256;
+    textureData = ResourceLoader::loadTextureFromFile("Resources\\tex.jpg", textureWidth, textureHeight);
+    // for (int i = 0; i < 10; ++i) {
+    //     uint32_t pixel = textureData[i];
+    //     SDL_Log("Pixel %d: R=%d, G=%d, B=%d, A=%d",
+    //             i,
+    //             (pixel & 0xFF),         // Red
+    //             (pixel >> 8) & 0xFF,   // Green
+    //             (pixel >> 16) & 0xFF,  // Blue
+    //             (pixel >> 24) & 0xFF); // Alpha
+    // }
 }

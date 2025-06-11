@@ -120,7 +120,7 @@ glm::mat4 Camera::getProjectionMatrix() {
 // Perspective projection: view space -> clip space -> NDC
 glm::mat4 Camera::_getPerspectiveMatrix(){
     float tanHalfFovy = 1.0f / tan(glm::radians(fovY / 2.0f));
-	float rangeInv = 1.0f / (n - f);
+	float rangeInv = 1.0f / (f - n); // corrected depth order
 
     glm::mat4 persp = glm::mat4(0.0f); // 初始化为零矩阵
 

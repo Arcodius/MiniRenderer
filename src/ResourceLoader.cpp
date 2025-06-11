@@ -1,4 +1,4 @@
-#include "ObjLoader.h"
+#include "ResourceLoader.h"
 
 #include <SDL3/SDL_log.h>
 
@@ -9,13 +9,16 @@
 #include <filesystem>
 #include <windows.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 std::filesystem::path get_executable_path() {
     char buffer[MAX_PATH];
     GetModuleFileNameA(NULL, buffer, MAX_PATH);
     return std::filesystem::path(buffer).parent_path();
 }
 
-bool ObjLoader::LoadFromFile(const std::string& filename, Mesh& outMesh) {
+bool ResourceLoader::loadMeshFromFile(const std::string& filename, Mesh& outMesh) {
     std::filesystem::path exe_dir = get_executable_path();
     std::filesystem::path abs_path = exe_dir / filename;
     std::ifstream file(abs_path);
@@ -90,4 +93,27 @@ bool ObjLoader::LoadFromFile(const std::string& filename, Mesh& outMesh) {
     outMesh.setName(filename);
     file.close();
     return true;
+}
+
+std::vector<uint32_t> ResourceLoader::loadTextureFromFile(const std::string& path, int& texWidth, int& texHeight) {
+    int channels;
+    unsigned char* data = stbi_load(path.c_str(), &texWidth, &texHeight, &channels, 4); // Force 4 channels (RGBA)
+    if (!data) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load texture: %s", path.c_str());
+        return {};
+    }
+    std::vector<uint32_t> textureData(texWidth * texHeight);
+    std::memcpy(textureData.data(), data, texWidth * texHeight * 4); // Copy texture data
+    // Debug: Print first few pixels
+    // for (int i = 0; i < min(10, texWidth * texHeight); ++i) {
+    //     uint32_t pixel = textureData[i];
+    //     SDL_Log("Pixel %d: R=%d, G=%d, B=%d, A=%d",
+    //             i,
+    //             (pixel & 0xFF),         // Red
+    //             (pixel >> 8) & 0xFF,   // Green
+    //             (pixel >> 16) & 0xFF,  // Blue
+    //             (pixel >> 24) & 0xFF); // Alpha
+    // }
+    stbi_image_free(data);
+    return textureData;
 }
