@@ -48,17 +48,16 @@ public:
 		: Light(color_, intensity_), position(position_), range(range_) {}
 
 	glm::vec3 getDirection(const glm::vec3& point) const override {
-		return glm::normalize(point - position);
+		return glm::normalize(position - point);
 	}
 
 	float getIntensity(const glm::vec3& point) const override {
-		float distance = getDistance(point);
-		//if (distance > range) return 0;
-		return intensity / (distance * distance);
-	}
+        float distance2 = static_cast<float>((point - position).length());
+        return intensity / (std::pow(distance2, 2.f) + EPSILON); // 或使用 (a + b*d + c*d^2)
+    }
 
     float getDistance(const glm::vec3& point) const override {
-        return (point - position).length();
+        return static_cast<float>((point - position).length());
     }
 };
 
@@ -100,7 +99,7 @@ public:
 
     float getIntensity(const glm::vec3& point) const override {
 
-        float distance = (position - point).length();
+        float distance = static_cast<float>((position - point).length());
         if (distance > range) return 0.0f;
 
         float distanceAttenuation = 1.0f - (distance / range);
@@ -127,7 +126,7 @@ public:
     }
 
     float getDistance(const glm::vec3& point) const override {
-        return (position - point).length();
+        return static_cast<float>((position - point).length());
     }
 
     void setDirection(const glm::vec3& newDirection) {

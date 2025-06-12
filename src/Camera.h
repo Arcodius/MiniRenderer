@@ -44,9 +44,7 @@ public:
     ProjectionType projectionType;
     
 
-    Camera()
-        : position(0, 0, 5), target(0, 0, 0), fovY(45.0f), aspect(1.0f), 
-        n(0.1f), f(100.0f), width(1.0f), height(1.0f), projectionType(PERSPECTIVE) {updateCameraVectors();}
+    Camera();
 
     void reset();
     glm::vec3 getPosition() const { return position; }

@@ -52,4 +52,6 @@ void Object::setMesh(const std::string& meshPath) {
 		return;
 	}
 	mesh = new_mesh;
+	update();
+	mesh.applyTransform(matrix);
 }

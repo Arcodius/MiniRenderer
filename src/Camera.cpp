@@ -96,6 +96,7 @@ glm::mat4 Camera::getViewMatrix() {
     isViewDirty = false;
     viewMatrix = view;
     return viewMatrix;
+	// return glm::lookAt(position, target, up); // debug: 使用glm的lookAt函数生成视图矩阵
 }
 
 
@@ -120,7 +121,7 @@ glm::mat4 Camera::getProjectionMatrix() {
 // Perspective projection: view space -> clip space -> NDC
 glm::mat4 Camera::_getPerspectiveMatrix(){
     float tanHalfFovy = 1.0f / tan(glm::radians(fovY / 2.0f));
-	float rangeInv = 1.0f / (f - n); // corrected depth order
+	float rangeInv = 1.0f / (f - n);
 
     glm::mat4 persp = glm::mat4(0.0f); // 初始化为零矩阵
 
@@ -132,17 +133,12 @@ glm::mat4 Camera::_getPerspectiveMatrix(){
     
 
 	return persp;
-
 }
 
 glm::mat4 Camera::_getOrthographicMatrix(){
 	float halfWidth = width * 0.5f * zoomFactor;
 	float halfHeight = height * 0.5f * zoomFactor;
-
-	// float l = position.x - halfWidth;
-	// float r = position.x + halfWidth;
-	// float b = position.y - halfHeight;
-	// float t = position.y + halfHeight;
+	
 	float l = -halfWidth;
 	float r = halfWidth;
 	float b = -halfHeight;
@@ -154,7 +150,7 @@ glm::mat4 Camera::_getOrthographicMatrix(){
 	ortho[2][2] = -2.0f / (f - n);
 	ortho[3][0] = -(r + l) / (r - l);
 	ortho[3][1] = -(t + b) / (t - b);
-	ortho[3][2] = -(f + n) / (f - n);
+	ortho[3][2] = -(f + n) / (n - f);
 
 	return ortho;
 	// return glm::ortho(l, r, b, t, n, f);
@@ -170,6 +166,9 @@ void Camera::reset() {
 	f = 100.0f;
 	width = 1.0f;
 	height = 1.0f;
+	projectionType = PERSPECTIVE;
+
+	updateCameraVectors();
 
 	isViewDirty = true;
 	isProjectionDirty = true;
@@ -213,7 +212,7 @@ void Camera::moveRight(float amount) {
 
 void Camera::handleScroll(float scrollY, float deltaTime){
 	if (projectionType == PERSPECTIVE) {
-		float newFov = fovY - scrollY * 5.f * deltaTime; // 缩放速度可调
+		float newFov = fovY + scrollY * 10.f * deltaTime; // 缩放速度可调
 		fovY = CLAMP(newFov, 10.0f, 120.0f); // 限制视角范围
 	} else {
 		float newZoom = zoomFactor * std::pow(0.9f, scrollY * deltaTime); // 每滚动一步缩放10%
@@ -221,4 +220,8 @@ void Camera::handleScroll(float scrollY, float deltaTime){
 	}
 
 	isProjectionDirty = true;
+}
+
+Camera::Camera(){
+	reset();
 }

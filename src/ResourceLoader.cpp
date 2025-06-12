@@ -73,9 +73,13 @@ bool ResourceLoader::loadMeshFromFile(const std::string& filename, Mesh& outMesh
 
                 glm::vec3 pos = positions[vIdx];
                 glm::vec2 tex = tIdx >= 0 ? texcoords[tIdx] : glm::vec2(0, 0);
-                glm::vec3 norm = nIdx >= 0 ? normals[nIdx] : glm::vec3(0, 0, 1);
+                glm::vec3 norm = nIdx >= 0 ? normals[nIdx] : glm::vec3(0, 1, 0);
 
-                Vertex vert(pos, norm, tex);
+                Vertex vert = Vertex();
+                vert.localPos = pos;
+                vert.uv = tex;
+                vert.normal = norm;
+                // printf("Loaded vertex: pos=(%.2f, %.2f, %.2f), uv=(%.2f, %.2f), norm=(%.2f, %.2f, %.2f)\n", pos.x, pos.y, pos.z, tex.x, tex.y, norm.x, norm.y, norm.z);
                 outMesh.vertices.push_back(vert);
                 unsigned int newIdx = (unsigned int)(outMesh.vertices.size() - 1);
                 faceIndices.push_back(newIdx);

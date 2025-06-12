@@ -19,26 +19,26 @@ public:
 
 	Scene() : camera() {
 		// TODO: load from config
-		Object cone;
-		cone.setMesh("Resources\\cube.obj");
-		cone.setPosition(glm::vec3(0, 0, 0.5f));
-		cone.setRotation(glm::vec3(0));
-		cone.setScale(glm::vec3(1.0f));
-		addObject(cone);
+		Object plane;
+		plane.setMesh("Resources\\plane.obj");
+		plane.setPosition(glm::vec3(0, 0, 0.0f));
+		plane.setRotation(glm::vec3(0, 0, 0));
+		plane.setScale(glm::vec3(3.f));
+		addObject(plane);
 
-        Object cube;
-        cube.setMesh("Resources\\torus.obj");
-        cube.setPosition(glm::vec3(0, 0, 2.0f));
-        cube.setRotation(glm::vec3(0, 66, 0));
-        cube.setScale(glm::vec3(0.5f));
-        addObject(cube);
+		Object cube;
+		cube.setMesh("Resources\\cube.obj");
+		cube.setPosition(glm::vec3(0, 0.5f, 0.0f));
+		cube.setRotation(glm::vec3(0));
+		cube.setScale(glm::vec3(0.5f));
+		addObject(cube);
 
 		addLight(std::make_shared<PointLight>(
-			Color(glm::vec3(1.0f, 1.0f, 0.3f)), 10.0f, glm::vec3(0.0f, 0.0f, 2.0f), 5.0f
+			Color(glm::vec3(1.0f, 1.0f, 0.0f)), 10.0f, glm::vec3(0.0f, 4.0f, 0.0f), 10.0f
 		));
 
-		camera.setPerspective(false);
-		camera.setFovY(75.0f);
+		camera.setPerspective(true);
+		camera.setFovY(120.f);
 
         camera.setPosition(glm::vec3(2.0f));
         camera.setTarget(glm::vec3(0, 0, 2.0f));
