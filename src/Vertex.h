@@ -11,3 +11,9 @@ struct Vertex {
 	Vertex(const glm::vec3& localPos, const glm::vec3& worldPos, const glm::vec3& normal, const glm::vec2& uv)
 		: localPos(localPos), worldPos(worldPos), normal(normal), uv(uv){}
 };
+
+// A structure to hold a vertex and its corresponding clip-space position
+struct ClippedVertex {
+    Vertex vertex;
+    glm::vec4 clipPos;
+};

@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(MiniRenderer)
 set(CMAKE_CXX_STANDARD 20)
+# set(CMAKE_CUDA_STANDARD 17)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
     src/*.cpp
@@ -17,7 +18,9 @@ include_directories(${GLM_DIR}) # 使用 include_directories 或 target_include_
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL3" EXCLUDE_FROM_ALL)
 link_libraries(SDL3::SDL3)
 
-add_executable(MiniRenderer ${SOURCES})
+add_executable(MiniRenderer ${SOURCES}
+    # src/cuda_transform_kernel.cu
+)
 
 target_include_directories(MiniRenderer PRIVATE ${GLM_DIR})
 

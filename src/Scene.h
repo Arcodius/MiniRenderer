@@ -23,15 +23,15 @@ public:
 		plane.setMesh("Resources\\plane.obj");
 		plane.setPosition(glm::vec3(0, 0, 0.0f));
 		plane.setRotation(glm::vec3(0, 0, 0));
-		plane.setScale(glm::vec3(3.f));
+		plane.setScale(glm::vec3(1.f));
 		addObject(plane);
 
-		Object cube;
-		cube.setMesh("Resources\\cube.obj");
-		cube.setPosition(glm::vec3(0, 0.5f, 0.0f));
-		cube.setRotation(glm::vec3(0));
-		cube.setScale(glm::vec3(0.5f));
-		addObject(cube);
+		// Object sphere;
+		// sphere.setMesh("Resources\\sphere.obj");
+		// sphere.setPosition(glm::vec3(0, 0.5f, 0.0f));
+		// sphere.setRotation(glm::vec3(0, 0, 0));
+		// sphere.setScale(glm::vec3(0.5f));
+		// addObject(sphere);
 
 		addLight(std::make_shared<PointLight>(
 			Color(glm::vec3(1.0f, 1.0f, 0.0f)), 10.0f, glm::vec3(0.0f, 4.0f, 0.0f), 10.0f

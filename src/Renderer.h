@@ -7,20 +7,11 @@
 
 class Camera;
 class Light;
+class Line;
 class Scene;
 struct Vertex;
 
 class Renderer {
-private:
-	struct ClipVertex {
-		Vertex vertex;
-		glm::vec4 clipPos;
-		float invW;
-	};
-	bool inside(const glm::vec4& v, int plane);
-	ClipVertex intersect(const ClipVertex& v1, const ClipVertex& v2, int plane);
-	float computeT(const glm::vec4& v1, const glm::vec4& v2, int plane);
-	std::vector<ClipVertex> clipTriangle(const ClipVertex& v0, const ClipVertex& v1, const ClipVertex& v2);
 public:
 	int screenWidth, screenHeight;
 	Buffer<uint32_t> framebuffer;
@@ -29,7 +20,7 @@ public:
 	std::vector<uint32_t> textureData;
 private:
 	glm::vec3 sampleTexture(const std::vector<uint32_t>& textureData, glm::vec2 uv, int texWidth, int texHeight);
-    static bool _isBackFacing(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2);
+    bool _isBackFacingViewSpace( const glm::vec3& w0, const glm::vec3& w1, const glm::vec3& w2, const glm::vec3& cameraPosition);
     static bool _insideTriangle(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
 
 	static std::vector<glm::vec3> clipToScreen(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, int screenWidth, int screenHeight);

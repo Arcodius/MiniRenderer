@@ -53,9 +53,9 @@ int main(int argc, char* argv[])
     float deltaTime = 0.016f;
     while(keep_going){
         // 在主循环内部，渲染循环的开始处
-        Uint64 currentTick = SDL_GetPerformanceCounter();
-        deltaTime = (float)(currentTick - lastTick) / (float)SDL_GetPerformanceFrequency();
-        lastTick = currentTick;
+        // Uint64 currentTick = SDL_GetPerformanceCounter();
+        // deltaTime = (float)(currentTick - lastTick) / (float)SDL_GetPerformanceFrequency();
+        // lastTick = currentTick;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT ||
             (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)) {
