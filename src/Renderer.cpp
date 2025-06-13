@@ -1,9 +1,12 @@
 #include "Renderer.h"
 
+#include <array>   // Include <array> for std::array usage
+#include "Intersection.h"
+#include "Ray.h"
 #include "ResourceLoader.h"
 #include "Scene.h"
 #include "Line.h" // Ensure the definition of Line is included
-#include <array>   // Include <array> for std::array usage
+
 
 //#include "Debug.h"
 //#define DEBUG_MODE
@@ -365,6 +368,57 @@ void Renderer::render(Scene scene) {
         }
     }
 }
+
+void Renderer::renderRayTracing(Scene scene) {
+    clearBuffers();
+
+    // Iterate over each pixel in the framebuffer
+    for (int y = 0; y < screenHeight; ++y) {
+        for (int x = 0; x < screenWidth; ++x) {
+            // Generate ray for the current pixel
+            Ray ray = scene.camera.generateRay(x, y, screenWidth, screenHeight);
+
+            // Trace the ray through the scene
+            glm::vec3 color = traceRay(ray, scene, 0);
+
+            // Write the color to the framebuffer
+            framebuffer.setPixel(x, y, Color::VecToUint32(color));
+        }
+    }
+}
+
+glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
+    if (depth > MAX_DEPTH) {
+        return glm::vec3(0.0f); // Terminate recursion
+    }
+
+    // Find the closest intersection
+    Intersection intersection;
+    if (!scene.intersect(ray, intersection)) {
+        return scene.getBackgroundColor(); // No intersection, return background color
+    }
+
+    // Compute local shading (e.g., Phong shading)
+    glm::vec3 localColor = computeLocalShading(intersection, scene);
+
+    // Compute reflection
+    glm::vec3 reflectionColor(0.0f);
+    if (intersection.material.reflectivity > 0.0f) {
+        Ray reflectedRay = computeReflectedRay(ray, intersection);
+        reflectionColor = traceRay(reflectedRay, scene, depth + 1) * intersection.material.reflectivity;
+    }
+
+    // Compute refraction
+    glm::vec3 refractionColor(0.0f);
+    if (intersection.material.transparency > 0.0f) {
+        Ray refractedRay = computeRefractedRay(ray, intersection);
+        refractionColor = traceRay(refractedRay, scene, depth + 1) * intersection.material.transparency;
+    }
+
+    // Combine local shading, reflection, and refraction
+    return localColor + reflectionColor + refractionColor;
+}
+
 
 Renderer::Renderer(int width, int height){
     screenWidth = width;

@@ -1,9 +1,20 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
-
+#include <string>
 #include "Renderer.h"
 #include "Scene.h"
 
+void drawTopUI(SDL_Renderer* sdlRenderer, const std::string& modeText) {
+    // Set UI background color
+    SDL_SetRenderDrawColor(sdlRenderer, 50, 50, 50, 255); // Dark gray
+    SDL_FRect uiRect = {0, 0, 1280, 40}; // Top UI bar
+    SDL_RenderFillRect(sdlRenderer, &uiRect);
+
+    // Render text (requires SDL_ttf or similar library for text rendering)
+    SDL_SetRenderDrawColor(sdlRenderer, 255, 255, 255, 255); // White text
+    SDL_Log("Rendering mode: %s", modeText.c_str()); // Debug log for mode
+    // You can integrate SDL_ttf here to render actual text on the screen
+}
 
 int main(int argc, char* argv[])
 {
@@ -46,6 +57,7 @@ int main(int argc, char* argv[])
     SDL_Event event{};
     bool keep_going = true;
     bool mouseRightButtonDown = false;
+    bool useRayTracing = false; // 是否使用光线追踪渲染
     bool justEnteredRelativeMode = false; // first frame protection
     const bool* keyboardState = SDL_GetKeyboardState(NULL); // 监控keyboard状态
     
@@ -60,6 +72,16 @@ int main(int argc, char* argv[])
             if (event.type == SDL_EVENT_QUIT ||
             (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)) {
                 keep_going = false;
+            }
+
+            // 切换渲染模式
+            if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_TAB) {
+                useRayTracing = !useRayTracing; // Toggle rendering mode
+                if (useRayTracing) {
+                    SDL_Log("Switched to Ray Tracing mode");
+                } else {
+                    SDL_Log("Switched to Rasterization mode");
+                }
             }
 
             // 右键按下启用相对鼠标模式
@@ -115,7 +137,11 @@ int main(int argc, char* argv[])
         
 
         // rendering part
-        renderer.render(scene);
+        if (useRayTracing) {
+            renderer.renderRayTracing(scene);
+        } else {
+            renderer.render(scene);
+        }
         // update framebuffer to SDL_Texture
         SDL_UpdateTexture(texture, nullptr, renderer.framebuffer.data(), width * sizeof(uint32_t));
 
@@ -138,7 +164,6 @@ int main(int argc, char* argv[])
         dst_rect.y = (window_height - dst_rect.h) / 2.0f;
 
         // Draw the texture to the screen
-        // SDL_RenderTexture(sdlRenderer, texture, nullptr, nullptr);
         SDL_RenderClear(sdlRenderer);
         SDL_RenderTexture(sdlRenderer, texture, nullptr, &dst_rect); // adapt to window size
         SDL_RenderPresent(sdlRenderer);

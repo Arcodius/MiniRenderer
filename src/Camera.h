@@ -1,6 +1,7 @@
 #pragma once
-#include "MyMath.h"
 
+#include "MyMath.h"
+#include "Ray.h"
 
 class Camera {
 private:
@@ -70,4 +71,8 @@ public:
     void moveForward(float amount);
     void moveRight(float amount);
     void handleScroll(float scrollY, float deltaTime);
+
+    // Light tracing
+    Ray generateRay(int x, int y, int width, int height) const;
+
 };

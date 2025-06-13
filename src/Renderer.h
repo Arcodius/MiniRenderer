@@ -8,10 +8,14 @@
 class Camera;
 class Light;
 class Line;
+struct Ray;
 class Scene;
 struct Vertex;
 
 class Renderer {
+private:
+	static constexpr int MAX_DEPTH = 5; // Maximum recursion depth for ray tracing
+
 public:
 	int screenWidth, screenHeight;
 	Buffer<uint32_t> framebuffer;
@@ -19,6 +23,7 @@ public:
 	int textureWidth = 0, textureHeight = 0; // texture size
 	std::vector<uint32_t> textureData;
 private:
+	// rasterization
 	glm::vec3 sampleTexture(const std::vector<uint32_t>& textureData, glm::vec2 uv, int texWidth, int texHeight);
     bool _isBackFacingViewSpace( const glm::vec3& w0, const glm::vec3& w1, const glm::vec3& w2, const glm::vec3& cameraPosition);
     static bool _insideTriangle(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
@@ -34,9 +39,13 @@ private:
 		const float& w0_, const float& w1_, const float& w2_,
 		const std::vector<std::shared_ptr< Light >>& lights, const Camera& camera);
 
+	// ray tracing
+	glm::vec3 traceRay(const Ray& ray, const Scene& scene, int depth);
+
 public:
 	void clearBuffers();
 	void render(Scene scene);
+	void renderRayTracing(Scene scene);
 
 	Renderer(int width, int height);
 

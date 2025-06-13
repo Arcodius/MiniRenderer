@@ -222,6 +222,24 @@ void Camera::handleScroll(float scrollY, float deltaTime){
 	isProjectionDirty = true;
 }
 
+Ray Camera::generateRay(int x, int y, int width, int height) const {
+    // 将像素坐标转换到 [-1, 1] 的NDC空间
+    float ndcX = (x + 0.5f) / width  * 2.0f - 1.0f;
+    float ndcY = 1.0f - (y + 0.5f) / height * 2.0f; // y反过来
+
+    // 计算屏幕空间坐标
+    float tanFov = tanf(glm::radians(fovY) * 0.5f);
+    float px = ndcX * aspect* tanFov;
+    float py = ndcY * tanFov;
+
+    // 构造 ray direction in world space
+    glm::vec3 dir = glm::normalize(px * right + py * up + front);
+
+    return Ray(position, dir);
+}
+
+
+
 Camera::Camera(){
 	reset();
 }

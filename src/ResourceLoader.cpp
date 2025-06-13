@@ -108,16 +108,6 @@ std::vector<uint32_t> ResourceLoader::loadTextureFromFile(const std::string& pat
     }
     std::vector<uint32_t> textureData(texWidth * texHeight);
     std::memcpy(textureData.data(), data, texWidth * texHeight * 4); // Copy texture data
-    // Debug: Print first few pixels
-    // for (int i = 0; i < min(10, texWidth * texHeight); ++i) {
-    //     uint32_t pixel = textureData[i];
-    //     SDL_Log("Pixel %d: R=%d, G=%d, B=%d, A=%d",
-    //             i,
-    //             (pixel & 0xFF),         // Red
-    //             (pixel >> 8) & 0xFF,   // Green
-    //             (pixel >> 16) & 0xFF,  // Blue
-    //             (pixel >> 24) & 0xFF); // Alpha
-    // }
     stbi_image_free(data);
     return textureData;
 }

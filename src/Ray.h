@@ -2,17 +2,10 @@
 
 #include "MyMath.h"
 
-class Ray {
-public:
-	glm::vec3 o; // The starting point of the ray
-	glm::vec3 t; // The direction in which the ray is pointing
+struct Ray {
+    glm::vec3 origin;
+    glm::vec3 direction;
 
-	// Constructor to initialize a ray with an origin and direction
-	Ray(const glm::vec3& origin, const glm::vec3& direction)
-		: o(origin), t(glm::normalize(direction)) {}
-
-	// Method to get a point along the ray at a given distance t
-	glm::vec3 at(float scalar) const {
-		return o + t * scalar;
-	}
+    Ray(const glm::vec3& o, const glm::vec3& d)
+        : origin(o), direction(glm::normalize(d)) {}
 };
