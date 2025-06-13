@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Color.h"
 #include <vector>
 
 template <typename PixelType>

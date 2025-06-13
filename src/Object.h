@@ -65,6 +65,8 @@ public:
 	bool hasMaterial() const { return material != nullptr; }
 	std::shared_ptr<Material> getMaterial() const { return material; }
     void setMaterial(const std::shared_ptr<Material>& m) { material = m; }
+
+	virtual bool intersect(const Ray& ray, Intersection& isect) const {return false;}
 };
 
 class Sphere : public Object {
@@ -73,15 +75,102 @@ private:
     
 public:
     Sphere(const glm::vec3& position, float r, const Material& m)
-        : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), radius(r) {
+		: Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), radius(r) {
+		setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::SPHERE); // Mark as primitive
     }
 
     float getRadius() const { return radius; }
     void setRadius(float r) { radius = r; }
 
-    
-
     // Sphere intersection logic
-    bool intersect(const Ray& ray, Intersection& isect) const;
+    bool intersect(const Ray& ray, Intersection& isect) const override;
+};
+
+// Plane class
+class Plane : public Object {
+public:
+    Plane(const glm::vec3& position, const glm::vec3& normal, const Material& m)
+        : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)) {
+        setMaterial(std::make_shared<Material>(m));
+        setAsPrimitive(Object::PrimitiveType::PLANE); // Mark as primitive
+    }
+
+    bool intersect(const Ray& ray, Intersection& isect) const override;
+};
+
+// Cube class
+class Cube : public Object {
+public:
+    Cube(const glm::vec3& position, const glm::vec3& scale, const Material& m)
+        : Object(Mesh(), position, glm::vec3(0.0f), scale) {
+        setMaterial(std::make_shared<Material>(m));
+        setAsPrimitive(Object::PrimitiveType::CUBE); // Mark as primitive
+    }
+	
+    bool intersect(const Ray& ray, Intersection& isect) const override;
+};
+
+// Cylinder class
+class Cylinder : public Object {
+private:
+    float radius;
+    float height;
+
+public:
+    Cylinder(const glm::vec3& position, float r, float h, const Material& m)
+        : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), radius(r), height(h) {
+        setMaterial(std::make_shared<Material>(m));
+        setAsPrimitive(Object::PrimitiveType::CYLINDER); // Mark as primitive
+    }
+
+    float getRadius() const { return radius; }
+    float getHeight() const { return height; }
+    void setRadius(float r) { radius = r; }
+    void setHeight(float h) { height = h; }
+
+    bool intersect(const Ray& ray, Intersection& isect) const override;
+};
+
+// Cone class
+class Cone : public Object {
+private:
+    float radius;
+    float height;
+
+public:
+    Cone(const glm::vec3& position, float r, float h, const Material& m)
+        : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), radius(r), height(h) {
+        setMaterial(std::make_shared<Material>(m));
+        setAsPrimitive(Object::PrimitiveType::CONE); // Mark as primitive
+    }
+
+    float getRadius() const { return radius; }
+    float getHeight() const { return height; }
+    void setRadius(float r) { radius = r; }
+    void setHeight(float h) { height = h; }
+
+    bool intersect(const Ray& ray, Intersection& isect) const override;
+};
+
+// Torus class
+class Torus : public Object {
+// only suppports XZ plane torus
+private:
+    float majorRadius; // Distance from center to the tube center
+    float minorRadius; // Radius of the tube
+
+public:
+    Torus(const glm::vec3& position, float majorR, float minorR, const Material& m)
+        : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), majorRadius(majorR), minorRadius(minorR) {
+        setMaterial(std::make_shared<Material>(m));
+        setAsPrimitive(Object::PrimitiveType::TORUS); // Mark as primitive
+    }
+
+    float getMajorRadius() const { return majorRadius; }
+    float getMinorRadius() const { return minorRadius; }
+    void setMajorRadius(float majorR) { majorRadius = majorR; }
+    void setMinorRadius(float minorR) { minorRadius = minorR; }
+
+    bool intersect(const Ray& ray, Intersection& isect) const override;
 };

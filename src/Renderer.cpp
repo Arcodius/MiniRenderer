@@ -1,6 +1,7 @@
 #include "Renderer.h"
 
 #include <array>   // Include <array> for std::array usage
+#include "Color.h"
 #include "Intersection.h"
 #include "Ray.h"
 #include "ResourceLoader.h"
@@ -311,7 +312,8 @@ void Renderer::render(Scene scene) {
     glm::mat4 viewMatrix = scene.camera.getViewMatrix();
     glm::mat4 viewProjectionMatrix = projectionMatrix * viewMatrix;
 
-    for (Object& object : scene.objects) {
+    for (const auto& objectPtr : scene.objects) {
+        Object& object = *objectPtr;
         const glm::mat4 modelMatrix = object.getMatrix();
         const glm::mat4 mvp = viewProjectionMatrix * modelMatrix;
         
@@ -377,10 +379,10 @@ void Renderer::renderRayTracing(Scene scene) {
         for (int x = 0; x < screenWidth; ++x) {
             // Generate ray for the current pixel
             Ray ray = scene.camera.generateRay(x, y, screenWidth, screenHeight);
-
+            // printf("Rendering pixel (%d, %d)\n", x, y);
+            // printf("Ray direction: (%f, %f, %f)\n", ray.direction.x, ray.direction.y, ray.direction.z);
             // Trace the ray through the scene
             glm::vec3 color = traceRay(ray, scene, 0);
-
             // Write the color to the framebuffer
             framebuffer.setPixel(x, y, Color::VecToUint32(color));
         }
@@ -395,30 +397,86 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
     // Find the closest intersection
     Intersection intersection;
     if (!scene.intersect(ray, intersection)) {
-        return scene.getBackgroundColor(); // No intersection, return background color
+        return scene.getBackgroundColor(); // No intersection, return background grey color
     }
-
     // Compute local shading (e.g., Phong shading)
     glm::vec3 localColor = computeLocalShading(intersection, scene);
+    // // Compute reflection
+    // glm::vec3 reflectionColor(0.0f);
+    // if (intersection.material->reflectivity > 0.0f) {
+    //     Ray reflectedRay = computeReflectedRay(ray, intersection);
+    //     reflectionColor = traceRay(reflectedRay, scene, depth + 1) * intersection.material.reflectivity;
+    // }
 
-    // Compute reflection
-    glm::vec3 reflectionColor(0.0f);
-    if (intersection.material.reflectivity > 0.0f) {
-        Ray reflectedRay = computeReflectedRay(ray, intersection);
-        reflectionColor = traceRay(reflectedRay, scene, depth + 1) * intersection.material.reflectivity;
-    }
-
-    // Compute refraction
-    glm::vec3 refractionColor(0.0f);
-    if (intersection.material.transparency > 0.0f) {
-        Ray refractedRay = computeRefractedRay(ray, intersection);
-        refractionColor = traceRay(refractedRay, scene, depth + 1) * intersection.material.transparency;
-    }
+    // // Compute refraction
+    // glm::vec3 refractionColor(0.0f);
+    // if (intersection.material->transparency > 0.0f) {
+    //     Ray refractedRay = computeRefractedRay(ray, intersection);
+    //     refractionColor = traceRay(refractedRay, scene, depth + 1) * intersection.material.transparency;
+    // }
 
     // Combine local shading, reflection, and refraction
-    return localColor + reflectionColor + refractionColor;
+    // return localColor + reflectionColor + refractionColor;
+    return localColor;
 }
 
+glm::vec3 Renderer::computeLocalShading(const Intersection& isect, const Scene& scene) {
+    glm::vec3 color(0.0f);
+    glm::vec3 viewDir = glm::normalize(scene.camera.getPosition() - isect.position);
+    const auto& mat = *isect.material;
+
+    // 常量项：环境光
+    const float ambientStrength = 0.1f;
+    glm::vec3 ambient = ambientStrength * mat.diffuseColor;
+    color += ambient;
+
+    // 对每个点光源进行光照计算
+    for (const auto& light : scene.lights) {
+        glm::vec3 lightPos = light->getDirection(glm::vec3(0.0f)); // Replace with a method that provides the light's position or direction
+        float lightIntensity = light->getIntensity(isect.position);
+        glm::vec3 lightColor = light->getColor() * lightIntensity;
+        
+
+        glm::vec3 lightDir = glm::normalize(lightPos - isect.position);
+        float diff = glm::max(glm::dot(isect.normal, lightDir), 0.0f);
+        float shadowFactor = computeSoftShadow(isect.position, scene, lightPos, 4); // 16 次采样
+        glm::vec3 diffuse = diff * mat.diffuseColor * lightColor * shadowFactor;
+        color += diffuse;
+
+        if (glm::dot(isect.normal, lightDir) > 0.0f) { // 仅在法线与光源方向一致时计算高光
+            glm::vec3 halfwayDir = glm::normalize(lightDir + viewDir);
+            float spec = glm::pow(glm::max(glm::dot(isect.normal, halfwayDir), 0.0f), mat.shininess);
+            glm::vec3 specular = spec * mat.specularColor * lightColor;
+            color += specular; // 累加高光
+        }
+    }
+
+    return glm::clamp(color, 0.0f, 1.0f); // 保证颜色在 [0,1]
+}
+
+bool Renderer::isInShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos) {
+    glm::vec3 shadowRayDir = glm::normalize(lightPos - point);
+    Ray shadowRay(point + shadowRayDir * 0.001f, shadowRayDir); // 偏移避免自遮挡
+    Intersection shadowIsect;
+    shadowIsect.t = glm::length(lightPos - point);
+
+    return scene.intersect(shadowRay, shadowIsect); // 如果有遮挡，返回 true
+}
+
+float Renderer::computeSoftShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos, int numSamples) {
+    int occludedSamples = 0;
+    for (int i = 0; i < numSamples; ++i) {
+        glm::vec3 jitteredLightPos = lightPos + glm::vec3(
+            (rand() % 100 / 100.0f - 0.5f) * 0.1f, // 随机偏移
+            (rand() % 100 / 100.0f - 0.5f) * 0.1f,
+            (rand() % 100 / 100.0f - 0.5f) * 0.1f
+        );
+        if (isInShadow(point, scene, jitteredLightPos)) {
+            occludedSamples++;
+        }
+    }
+    return 1.0f - float(occludedSamples) / numSamples; // 返回未遮挡比例
+}
 
 Renderer::Renderer(int width, int height){
     screenWidth = width;

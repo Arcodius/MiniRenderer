@@ -6,6 +6,7 @@
 #include "Vertex.h"
 
 class Camera;
+struct Intersection;
 class Light;
 class Line;
 struct Ray;
@@ -40,6 +41,9 @@ private:
 		const std::vector<std::shared_ptr< Light >>& lights, const Camera& camera);
 
 	// ray tracing
+	glm::vec3 computeLocalShading(const Intersection& isect, const Scene& scene);
+	bool isInShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos);
+	float computeSoftShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos, int numSamples);
 	glm::vec3 traceRay(const Ray& ray, const Scene& scene, int depth);
 
 public:

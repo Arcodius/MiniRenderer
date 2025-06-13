@@ -18,6 +18,7 @@ public:
 
     // BRDF-related properties
     glm::vec3 specularColor;   // Specular color
+    float shininess;            // Shininess factor (0 = no shine, higher = more shine)
     float roughness;           // Roughness (0 = perfect mirror, 1 = fully diffuse)
     float metallic;            // Metallic factor (0 = non-metal, 1 = pure metal)
 
@@ -28,7 +29,7 @@ public:
 
     Material(std::string name = "default")
         : name(name), diffuseColor(1.0f), reflectivity(0.0f), transparency(0.0f), refractiveIndex(1.0f),
-          specularColor(1.0f), roughness(0.5f), metallic(0.0f) {}
+          specularColor(1.0f), shininess(0.75f), roughness(0.5f), metallic(0.0f) {}
     
     std::string get_name() const { return name; }
 

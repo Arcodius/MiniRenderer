@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
         SDL_Log("SDL_Init failed: $s", SDL_GetError());
     }
 
-    const int width = 1280, height = 720;
+    const int width = 160, height = 90;
     // Create a window
     SDL_Window* window = SDL_CreateWindow("MiniRenderer", width, height, SDL_WINDOW_RESIZABLE);
     if (!window){

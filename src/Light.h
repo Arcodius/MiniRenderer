@@ -1,17 +1,17 @@
 #pragma once
-#include "Color.h"
+
 #include "MyMath.h"
 
 class Light {
 public:
-	Color color;
+	glm::vec3 color;
 	float intensity;
 
-	Light() : color(Color()), intensity(1.0f) {}
-	Light(const Color& color_, float intensity_) : color(color_), intensity(intensity_) {}
+	Light() : color(glm::vec3(1.0f)), intensity(1.0f) {}
+	Light(const glm::vec3& color_, float intensity_) : color(color_), intensity(intensity_) {}
     virtual ~Light() = default;
 
-	Color getColor() const { return color; }
+	glm::vec3 getColor() const { return color; }
 	virtual glm::vec3 getDirection(const glm::vec3& point) const = 0;
 	virtual float getIntensity(const glm::vec3& point) const = 0;
 	virtual float getDistance(const glm::vec3& point) const = 0;
@@ -22,7 +22,7 @@ public:
 	glm::vec3 direction;
 
 	DirectionalLight() : Light(), direction(glm::vec3(0.0f, -1.0f, 0.0f)) {}
-	DirectionalLight(const Color& color_, float intensity_, const glm::vec3& direction_)
+	DirectionalLight(const glm::vec3& color_, float intensity_, const glm::vec3& direction_)
 		: Light(color_, intensity_), direction(direction_) {}
 
 	glm::vec3 getDirection(const glm::vec3& point) const override {
@@ -44,8 +44,12 @@ public:
 	float range;
 
 	PointLight() : Light(), position(glm::vec3(0.0f, 0.0f, 0.0f)), range(1.0f) {}
-	PointLight(const Color& color_, float intensity_, const glm::vec3& position_, float range_)
+	PointLight(const glm::vec3& color_, float intensity_, const glm::vec3& position_, float range_)
 		: Light(color_, intensity_), position(position_), range(range_) {}
+
+    glm::vec3 getPosition() const {
+        return position;
+    }
 
 	glm::vec3 getDirection(const glm::vec3& point) const override {
 		return glm::normalize(position - point);
@@ -79,7 +83,7 @@ public:
         outerAngle(45.0f),
         falloff(1.0f) {}
 
-    SpotLight(const Color& color, float intensity,
+    SpotLight(const glm::vec3& color, float intensity,
         const glm::vec3& position, const glm::vec3& direction,
         float range, float innerAngle, float outerAngle,
         float falloff = 1.0f)
@@ -90,7 +94,10 @@ public:
         innerAngle(innerAngle),
         outerAngle(outerAngle),
         falloff(falloff) {}
-
+    
+    glm::vec3 getPosition() const {
+        return position;
+    }
 
     glm::vec3 getDirection(const glm::vec3& point) const override {
         return glm::normalize(position - point);

@@ -12,49 +12,56 @@
 
 class Scene {
 private:
-	glm::vec3 backgroundColor = glm::vec3(0.0f);
+	glm::vec3 backgroundColor = glm::vec3(0.1f);
 public:
-	std::vector<Object> objects;
+	std::vector<std::shared_ptr< Object >> objects; // primitive objects use shared_ptr for polymorphism
 	std::vector<std::shared_ptr< Light >> lights;
 
 	Camera camera;
 
 	Scene() : camera() {
 		Material defaultMaterial;
-		defaultMaterial.diffuseColor = glm::vec3(1.0f, 0.5f, 0.5f); // Light red
+		defaultMaterial.diffuseColor = glm::vec3(1.0f, 0.1f, 0.1f); // Light red
 		defaultMaterial.specularColor = glm::vec3(1.0f, 1.0f, 1.0f); // White specular
 		defaultMaterial.roughness = 0.5f; // Medium roughness
 		defaultMaterial.metallic = 0.0f; // Non-metallic
 
-		// TODO: load from config
-		Object plane;
-		plane.setAsPrimitive(Object::PrimitiveType::PLANE);
-		plane.setPosition(glm::vec3(0, 0, 0.0f));
-		plane.setRotation(glm::vec3(0, 0, 0));
-		plane.setScale(glm::vec3(1.f));
-		plane.setMaterial(std::make_shared<Material>(defaultMaterial));
-		addObject(plane);
+		Material blueMaterial;
+		blueMaterial.diffuseColor = glm::vec3(0.1f, 0.1f, 1.0f); // Light blue
+		blueMaterial.specularColor = glm::vec3(1.0f, 1.0f, 1.0f); // White specular
+		blueMaterial.roughness = 0.1f;
+		blueMaterial.metallic = 1.0f;
+	
 
-		Object sphere;
-		sphere.setAsPrimitive(Object::PrimitiveType::SPHERE);
-		sphere.setPosition(glm::vec3(0, 0.5f, 0.0f));
-		sphere.setRotation(glm::vec3(0, 0, 0));
-		sphere.setScale(glm::vec3(0.5f));
-		plane.setMaterial(std::make_shared<Material>(defaultMaterial));
+		std::shared_ptr<Cube> plane = std::make_shared<Cube>(glm::vec3(0.0f), glm::vec3(3.0f, 1.0f, 1.0f), defaultMaterial);
+		addObject(plane);
+		
+		std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(glm::vec3(1.5f, 0.5f, 1.0f), 0.5f, defaultMaterial);
+		sphere->setRotation(glm::vec3(0, 0, 0));
+		sphere->setScale(glm::vec3(0.5f));
 		addObject(sphere);
 
+		std::shared_ptr<Sphere> sphere2 = std::make_shared<Sphere>(glm::vec3(-2.0f, 0.5f, -1.0f), 0.5f, blueMaterial);
+		sphere2->setRotation(glm::vec3(0, 0, 0));
+		sphere2->setScale(glm::vec3(0.5f));
+		addObject(sphere2);
+
+		std::shared_ptr<Cube> cube = std::make_shared<Cube>(glm::vec3(1.0f, 0.5f, 0.0f), glm::vec3(1.0f), defaultMaterial);
+		cube->setRotation(glm::vec3(0, 0, 0));
+		addObject(cube);
+
 		addLight(std::make_shared<PointLight>(
-			Color(glm::vec3(1.0f, 1.0f, 0.0f)), 10.0f, glm::vec3(0.0f, 4.0f, 0.0f), 10.0f
+			glm::vec3(1.0f, 1.0f, 0.0f), 5.0f, glm::vec3(0.0f, 4.0f, 0.0f), 100.0f
 		));
 
 		camera.setPerspective(true);
-		camera.setFovY(120.f);
+		camera.setFovY(90.f);
 
         camera.setPosition(glm::vec3(2.0f));
         camera.setTarget(glm::vec3(0, 0, 2.0f));
 	}
 
-	void addObject(const Object& object) {
+	void addObject(const std::shared_ptr<Object>& object) {
 		objects.push_back(object);
 	}
 
@@ -82,5 +89,7 @@ public:
 	glm::vec3 getBackgroundColor() const {
 		return backgroundColor;
 	}
+
+	bool intersect(const Ray& ray, Intersection& closestIsect) const;
 
 };
