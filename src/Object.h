@@ -69,6 +69,17 @@ public:
 	virtual bool intersect(const Ray& ray, Intersection& isect) const {return false;}
 };
 
+class GenericObject : public Object {
+public:
+    GenericObject(const Mesh& mesh, const glm::vec3& position, const glm::vec3& rotation, const glm::vec3& scale)
+        : Object(mesh, position, rotation, scale) {
+        isPrimitive = false; // 标记为非原始物体
+    }
+
+    // iterate through all triangles to look for intersection
+    virtual bool intersect(const Ray& ray, Intersection& isect) const override;
+};
+
 class Sphere : public Object {
 private:
     float radius; // Sphere radius
@@ -84,19 +95,22 @@ public:
     void setRadius(float r) { radius = r; }
 
     // Sphere intersection logic
-    bool intersect(const Ray& ray, Intersection& isect) const override;
+    virtual bool intersect(const Ray& ray, Intersection& isect) const override;
 };
 
 // Plane class
 class Plane : public Object {
+glm::vec3 normal;
+bool finite;
 public:
-    Plane(const glm::vec3& position, const glm::vec3& normal, const Material& m)
-        : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)) {
+    Plane(bool finite, const glm::vec3& position, const glm::vec3& normal, const Material& m)
+        : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), finite(finite), normal(normal) {
+        updateRotation();
         setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::PLANE); // Mark as primitive
     }
-
-    bool intersect(const Ray& ray, Intersection& isect) const override;
+    void updateRotation();
+    virtual bool intersect(const Ray& ray, Intersection& isect) const override;
 };
 
 // Cube class
@@ -108,7 +122,7 @@ public:
         setAsPrimitive(Object::PrimitiveType::CUBE); // Mark as primitive
     }
 	
-    bool intersect(const Ray& ray, Intersection& isect) const override;
+    virtual bool intersect(const Ray& ray, Intersection& isect) const override;
 };
 
 // Cylinder class
@@ -129,7 +143,7 @@ public:
     void setRadius(float r) { radius = r; }
     void setHeight(float h) { height = h; }
 
-    bool intersect(const Ray& ray, Intersection& isect) const override;
+    virtual bool intersect(const Ray& ray, Intersection& isect) const override;
 };
 
 // Cone class
@@ -150,7 +164,7 @@ public:
     void setRadius(float r) { radius = r; }
     void setHeight(float h) { height = h; }
 
-    bool intersect(const Ray& ray, Intersection& isect) const override;
+    virtual bool intersect(const Ray& ray, Intersection& isect) const override;
 };
 
 // Torus class
@@ -172,5 +186,5 @@ public:
     void setMajorRadius(float majorR) { majorRadius = majorR; }
     void setMinorRadius(float minorR) { minorRadius = minorR; }
 
-    bool intersect(const Ray& ray, Intersection& isect) const override;
+    virtual bool intersect(const Ray& ray, Intersection& isect) const override;
 };

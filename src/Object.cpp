@@ -85,32 +85,9 @@ void Object::setAsPrimitive(Object::PrimitiveType PrimitiveType) {
 	}
 }
 
-// bool Sphere::intersect(const Ray& ray, Intersection& isect) const {
-//     glm::vec3 oc = ray.origin - getPosition();
-//     float r = radius;
-//     float a = glm::dot(ray.direction, ray.direction);
-//     float b = 2.0f * glm::dot(oc, ray.direction);
-//     float c = glm::dot(oc, oc) - r * r;
-//     float discriminant = b * b - 4 * a * c;
-
-//     if (discriminant < 0.0f) return false;
-
-//     float sqrtDisc = std::sqrt(discriminant);
-//     float t1 = (-b - sqrtDisc) / (2.0f * a);
-//     float t2 = (-b + sqrtDisc) / (2.0f * a);
-//     float t = (t1 > 0.001f) ? t1 : ((t2 > 0.001f) ? t2 : -1.0f);
-
-//     if (t < 0.001f) return false;
-
-//     // 成功命中
-//     isect.t = t;
-//     isect.position = ray.origin + t * ray.direction;
-//     isect.normal = glm::normalize(isect.position - getPosition());
-//     isect.material = getMaterial();
-//     isect.hit = true;
-
-//     return true;
-// }
+bool GenericObject::intersect(const Ray& ray, Intersection& isect) const {
+    return mesh.intersect(ray, isect, material);
+}
 
 bool Sphere::intersect(const Ray& ray, Intersection& isect) const {
     glm::vec3 oc = ray.origin - getPosition();
@@ -154,8 +131,20 @@ bool Sphere::intersect(const Ray& ray, Intersection& isect) const {
     return true;
 }
 
+void Plane::updateRotation(){
+    normal = glm::normalize(normal);
+    glm::vec3 up(0.0f, 1.0f, 0.0f); // 世界坐标系中的上方向
+    glm::vec3 axis = glm::normalize(glm::cross(up, normal)); // 旋转轴
+    float angle = std::acos(glm::dot(up, normal)); // 旋转角度
+
+    if (glm::length(axis) > 1e-6) { // 确保旋转轴有效
+        rotation = glm::degrees(angle) * axis; // 将旋转角度和轴转换为欧拉角表示
+    } else {
+        rotation = glm::vec3(0.0f); // 如果法线与上方向平行，则无需旋转
+    }
+}
+
 bool Plane::intersect(const Ray& ray, Intersection& isect) const {
-    glm::vec3 normal = glm::normalize(rotation); // 平面的法线方向
     float d = -glm::dot(normal, position); // 平面方程的常数项
 
     float denom = glm::dot(normal, ray.direction);
@@ -164,9 +153,25 @@ bool Plane::intersect(const Ray& ray, Intersection& isect) const {
     float t = -(glm::dot(normal, ray.origin) + d) / denom;
     if (t < 0.001f || t >= isect.t) return false; // 光线方向错误或交点更远
 
-    // 成功命中
+    if (finite){
+        // 计算交点位置
+        glm::vec3 hitPoint = ray.origin + t * ray.direction;
+
+        // 检查交点是否在平面的边界范围内
+        glm::vec3 localPoint = hitPoint - position; // local space (not divided by scale)
+        float halfWidth = scale.x * 0.5f; // 平面的宽度的一半
+        float halfHeight = scale.z * 0.5f; // 平面的高度的一半
+
+        if (std::abs(localPoint.x) > halfWidth || std::abs(localPoint.z) > halfHeight) {
+            return false; // 交点超出边界
+        }
+
+        isect.position = hitPoint;
+    } else{
+        isect.position = ray.origin + t * ray.direction;
+    }
+
     isect.t = t;
-    isect.position = ray.origin + t * ray.direction;
     isect.normal = normal;
     isect.material = getMaterial();
     isect.hit = true;
@@ -336,4 +341,5 @@ bool Torus::intersect(const Ray& ray, Intersection& isect) const {
     isect.hit = true;
 
     return true;
+    // return mesh.intersect(ray, isect, material);
 }

@@ -1,4 +1,7 @@
 #pragma once
+
+#include "Intersection.h"
+#include "Ray.h"
 #include "Vertex.h"
 
 struct Triangle{
@@ -10,4 +13,7 @@ struct Triangle{
         vertices[2] = v2;
     }
     Triangle(): vertices{ Vertex(), Vertex(), Vertex() } {};
+
+    // Möller-Trumbore algorithm
+    bool intersect(const Ray& ray, Intersection& isect, const std::shared_ptr<Material>& material) const;
 };

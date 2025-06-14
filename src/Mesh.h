@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include "Vertex.h"
+#include "Triangle.h"
 
 class Mesh {
 private:
@@ -10,6 +11,7 @@ public:
     
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
+    std::vector<Triangle> triangles;
 
     std::string getName() const { return name; }
     void setName(const std::string& newName) { name = newName; }
@@ -26,4 +28,6 @@ public:
                    vertex.uv.x, vertex.uv.y);
         }
     }
+
+    bool intersect(const Ray& ray, Intersection& isect, const std::shared_ptr<Material>& material) const;
 };

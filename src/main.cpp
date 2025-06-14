@@ -4,17 +4,112 @@
 #include "Renderer.h"
 #include "Scene.h"
 
-void drawTopUI(SDL_Renderer* sdlRenderer, const std::string& modeText) {
-    // Set UI background color
-    SDL_SetRenderDrawColor(sdlRenderer, 50, 50, 50, 255); // Dark gray
-    SDL_FRect uiRect = {0, 0, 1280, 40}; // Top UI bar
-    SDL_RenderFillRect(sdlRenderer, &uiRect);
+void setupScene(Scene& scene) {
+    // 地面
+    Material groundMaterial;
+    groundMaterial.diffuseColor = glm::vec3(0.5f, 0.5f, 0.5f); // 灰色
+    groundMaterial.specularColor = glm::vec3(0.1f, 0.1f, 0.1f); // 微弱高光
+    groundMaterial.roughness = 0.8f; // 粗糙
+    groundMaterial.metallic = 0.0f; // 非金属
 
-    // Render text (requires SDL_ttf or similar library for text rendering)
-    SDL_SetRenderDrawColor(sdlRenderer, 255, 255, 255, 255); // White text
-    SDL_Log("Rendering mode: %s", modeText.c_str()); // Debug log for mode
-    // You can integrate SDL_ttf here to render actual text on the screen
+    std::shared_ptr<Plane> ground = std::make_shared<Plane>(
+        true,
+        glm::vec3(0.0f, -1.0f, 0.0f), // 地面位置
+        glm::vec3(0.0f, 1.0f, 0.0f), // 法线方向
+        groundMaterial
+    );
+    ground->setScale(glm::vec3(5.f, 1.0f, 5.f));
+    scene.addObject(ground);
+
+    // 球体
+    Material sphereMaterial;
+    sphereMaterial.diffuseColor = glm::vec3(1.0f, 0.0f, 0.0f); // 红色
+    sphereMaterial.specularColor = glm::vec3(1.0f, 1.0f, 1.0f); // 白色高光
+    sphereMaterial.roughness = 0.2f; // 光滑
+    sphereMaterial.metallic = 0.0f; // 非金属
+
+    std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(
+        glm::vec3(2.0f, 0.0f, 0.0f), // 球体位置
+        0.5f, // 半径
+        sphereMaterial
+    );
+    scene.addObject(sphere);
+
+    // 立方体
+    Material cubeMaterial;
+    cubeMaterial.diffuseColor = glm::vec3(0.0f, 0.0f, 1.0f); // 蓝色
+    cubeMaterial.specularColor = glm::vec3(1.0f, 1.0f, 1.0f); // 白色高光
+    cubeMaterial.roughness = 0.3f; // 光滑
+    cubeMaterial.metallic = 0.0f; // 非金属
+
+    std::shared_ptr<Cube> cube = std::make_shared<Cube>(
+        glm::vec3(-2.0f, 0.0f, 0.0f), // 立方体位置
+        glm::vec3(1.0f), // 尺寸
+        cubeMaterial
+    );
+    scene.addObject(cube);
+
+    // 圆柱
+    Material cylinderMaterial;
+    cylinderMaterial.diffuseColor = glm::vec3(0.0f, 1.0f, 0.0f); // 绿色
+    cylinderMaterial.specularColor = glm::vec3(1.0f, 1.0f, 1.0f); // 白色高光
+    cylinderMaterial.roughness = 0.4f; // 光滑
+    cylinderMaterial.metallic = 0.0f; // 非金属
+
+    std::shared_ptr<Cylinder> cylinder = std::make_shared<Cylinder>(
+        glm::vec3(0.0f, 0.0f, 2.0f), // 圆柱位置
+        0.5f, // 半径
+        1.5f, // 高度
+        cylinderMaterial
+    );
+    scene.addObject(cylinder);
+
+    // 圆锥
+    Material coneMaterial;
+    coneMaterial.diffuseColor = glm::vec3(1.0f, 1.0f, 0.0f); // 黄色
+    coneMaterial.specularColor = glm::vec3(1.0f, 1.0f, 1.0f); // 白色高光
+    coneMaterial.roughness = 0.5f; // 光滑
+    coneMaterial.metallic = 0.0f; // 非金属
+
+    std::shared_ptr<Cone> cone = std::make_shared<Cone>(
+        glm::vec3(0.0f, 0.0f, -2.0f), // 圆锥位置
+        0.5f, // 半径
+        1.5f, // 高度
+        coneMaterial
+    );
+    scene.addObject(cone);
+
+    // 环面
+    Material torusMaterial;
+    torusMaterial.diffuseColor = glm::vec3(1.0f, 0.5f, 0.0f); // 橙色
+    torusMaterial.specularColor = glm::vec3(1.0f, 1.0f, 1.0f); // 白色高光
+    torusMaterial.roughness = 0.3f; // 光滑
+    torusMaterial.metallic = 0.0f; // 非金属
+
+    std::shared_ptr<Torus> torus = std::make_shared<Torus>(
+        glm::vec3(0.0f, 0.0f, 0.0f), // 环面位置
+        1.0f, // 主半径
+        0.3f, // 次半径
+        torusMaterial
+    );
+    scene.addObject(torus);
+
+    // 灯光
+    std::shared_ptr<PointLight> light = std::make_shared<PointLight>(
+        glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
+        5.0f, // 强度
+        glm::vec3(0.0f, 2.0f, 0.0f), // 灯光位置
+        100.0f // 距离衰减
+    );
+    scene.addLight(light);
+
+    // 设置相机
+    scene.camera.setPerspective(true);
+    scene.camera.setFovY(90.0f);
+    scene.camera.setPosition(glm::vec3(0.0f, 2.0f, 5.0f));
+    scene.camera.setTarget(glm::vec3(0.0f, 0.0f, 0.0f));
 }
+
 
 int main(int argc, char* argv[])
 {
@@ -51,6 +146,7 @@ int main(int argc, char* argv[])
         return -1;
     }
     Scene scene = Scene();
+    setupScene(scene);
     Renderer renderer(width, height);
 
     // Event loop
@@ -176,3 +272,4 @@ int main(int argc, char* argv[])
     SDL_Quit();
     return 0;
 }
+
