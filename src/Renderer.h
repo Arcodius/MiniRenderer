@@ -42,6 +42,10 @@ private:
 
 	// ray tracing
 	glm::vec3 computeLocalShading(const Intersection& isect, const Scene& scene);
+	Ray computeReflectedRay(const Ray& ray, const Intersection& isect);
+	Ray computeRefractedRay(const Ray& ray, const Intersection& isect);
+
+	float fresnelSchlick(float cosTheta, float ior);
 	bool isInShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos);
 	float computeSoftShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos, int numSamples);
 	glm::vec3 traceRay(const Ray& ray, const Scene& scene, int depth);

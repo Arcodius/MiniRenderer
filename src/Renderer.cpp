@@ -401,23 +401,62 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
     }
     // Compute local shading (e.g., Phong shading)
     glm::vec3 localColor = computeLocalShading(intersection, scene);
-    // // Compute reflection
-    // glm::vec3 reflectionColor(0.0f);
-    // if (intersection.material->reflectivity > 0.0f) {
-    //     Ray reflectedRay = computeReflectedRay(ray, intersection);
-    //     reflectionColor = traceRay(reflectedRay, scene, depth + 1) * intersection.material.reflectivity;
-    // }
+    // Compute reflection
+    glm::vec3 reflectionColor(0.0f);
+    if (intersection.material->reflectivity > 0.0f) {
+        Ray reflectedRay = computeReflectedRay(ray, intersection);
+        reflectionColor = traceRay(reflectedRay, scene, depth + 1) * intersection.material->reflectivity;
+    }
 
-    // // Compute refraction
-    // glm::vec3 refractionColor(0.0f);
-    // if (intersection.material->transparency > 0.0f) {
-    //     Ray refractedRay = computeRefractedRay(ray, intersection);
-    //     refractionColor = traceRay(refractedRay, scene, depth + 1) * intersection.material.transparency;
-    // }
+    // Compute refraction
+    glm::vec3 refractionColor(0.0f);
+    if (intersection.material->transparency > 0.0f) {
+        Ray refractedRay = computeRefractedRay(ray, intersection);
+        refractionColor = traceRay(refractedRay, scene, depth + 1) * intersection.material->transparency;
+    }
 
     // Combine local shading, reflection, and refraction
-    // return localColor + reflectionColor + refractionColor;
-    return localColor;
+    float fresnel = fresnelSchlick(glm::dot(-ray.direction, intersection.normal), intersection.material->refractiveIndex);
+    return localColor + reflectionColor * fresnel + refractionColor * (1.0f - fresnel);
+}
+
+Ray Renderer::computeReflectedRay(const Ray& ray, const Intersection& isect) {
+    glm::vec3 normal = isect.normal;
+    glm::vec3 incident = glm::normalize(ray.direction);
+    glm::vec3 reflectedDir = glm::reflect(incident, normal);
+    // 防止浮点精度问题导致自交（"acne"），原点稍作偏移
+    glm::vec3 origin = isect.position + reflectedDir * 1e-4f;
+    return Ray(origin, reflectedDir);
+}
+
+Ray Renderer::computeRefractedRay(const Ray& ray, const Intersection& isect) {
+    glm::vec3 incident = glm::normalize(ray.direction);
+    glm::vec3 normal = isect.normal;
+    float eta = isect.material->refractiveIndex;
+
+    // 判断是否从内部射出
+    float cosi = glm::dot(incident, normal);
+    float etai = 1.0f, etat = eta;
+    if (cosi > 0.0f) {
+        std::swap(etai, etat);
+        normal = -normal;
+    } else {
+        cosi = -cosi;
+    }
+
+    float etaRatio = etai / etat;
+    float k = 1.0f - etaRatio * etaRatio * (1.0f - cosi * cosi);
+
+    glm::vec3 refractedDir;
+    if (k < 0.0f) {
+        // 全反射，全反射时不发射折射光线
+        refractedDir = glm::reflect(incident, normal);
+    } else {
+        refractedDir = etaRatio * incident + (etaRatio * cosi - sqrtf(k)) * normal;
+    }
+
+    glm::vec3 origin = isect.position + refractedDir * 1e-4f;
+    return Ray(origin, refractedDir);
 }
 
 glm::vec3 Renderer::computeLocalShading(const Intersection& isect, const Scene& scene) {
@@ -453,6 +492,13 @@ glm::vec3 Renderer::computeLocalShading(const Intersection& isect, const Scene& 
 
     return glm::clamp(color, 0.0f, 1.0f); // 保证颜色在 [0,1]
 }
+
+float Renderer::fresnelSchlick(float cosTheta, float ior) {
+    float r0 = (1.0f - ior) / (1.0f + ior);
+    r0 = r0 * r0;
+    return r0 + (1.0f - r0) * pow(1.0f - cosTheta, 5.0f);
+}
+
 
 bool Renderer::isInShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos) {
     glm::vec3 shadowRayDir = glm::normalize(lightPos - point);
