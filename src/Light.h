@@ -12,6 +12,7 @@ public:
     virtual ~Light() = default;
 
 	glm::vec3 getColor() const { return color; }
+    virtual glm::vec3 getPosition() const = 0;
 	virtual glm::vec3 getDirection(const glm::vec3& point) const = 0;
 	virtual float getIntensity(const glm::vec3& point) const = 0;
 	virtual float getDistance(const glm::vec3& point) const = 0;
@@ -24,6 +25,10 @@ public:
 	DirectionalLight() : Light(), direction(glm::vec3(0.0f, -1.0f, 0.0f)) {}
 	DirectionalLight(const glm::vec3& color_, float intensity_, const glm::vec3& direction_)
 		: Light(color_, intensity_), direction(direction_) {}
+
+    glm::vec3 getPosition() const override {
+        return glm::vec3(0.0f); // Directional light does not have a position
+    }
 
 	glm::vec3 getDirection(const glm::vec3& point) const override {
 		return glm::normalize(direction); // Directional light direction is constant
@@ -51,6 +56,7 @@ public:
         return position;
     }
 
+    // Point light emits light in all directions, so direction is from point to light source
 	glm::vec3 getDirection(const glm::vec3& point) const override {
 		return glm::normalize(position - point);
 	}

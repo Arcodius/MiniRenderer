@@ -1,51 +1,53 @@
 #include "Material.h"
 
+#include "Color.h"
 #include "ResourceLoader.h"
 
-void Material::loadDiffuseTexture(const std::string& path) {
-    diffuseTexture = ResourceLoader::loadTextureFromFile(path, textureWidth, textureHeight);
-    if (diffuseTexture.empty()) {
+void Material::loadBaseColorMap(const std::string& path) {
+    colorMap = ResourceLoader::loadTextureFromFile(path, textureWidth, textureHeight);
+    if (colorMap.empty()) {
         throw std::runtime_error("Failed to load diffuse texture: " + path);
     }
 }
 
-void Material::loadSpecularTexture(const std::string& path) {
-    specularTexture = ResourceLoader::loadTextureFromFile(path, textureWidth, textureHeight);
-    if (specularTexture.empty()) {
+void Material::loadRoughnessMap(const std::string& path) {
+    roughnessMap = ResourceLoader::loadTextureFromFile(path, textureWidth, textureHeight);
+    if (roughnessMap.empty()) {
         throw std::runtime_error("Failed to load specular texture: " + path);
     }
 }
 
-glm::vec3 Material::sampleDiffuseTexture(const glm::vec2& uv) const {
-    if (diffuseTexture.empty()) {
-        return diffuseColor; // Return base color if no texture is loaded
+void Material::loadNormalMap(const std::string& path) {
+    normalMap = ResourceLoader::loadTextureFromFile(path, textureWidth, textureHeight);
+    if (normalMap.empty()) {
+        throw std::runtime_error("Failed to load normal map texture: " + path);
     }
-
-    int texX = std::clamp(int(uv.x * textureWidth), 0, textureWidth - 1);
-    int texY = std::clamp(int(uv.y * textureHeight), 0, textureHeight - 1);
-    uint32_t pixel = diffuseTexture[texY * textureWidth + texX];
-
-    return glm::vec3(
-        (pixel & 0xFF) / 255.0f,         // Red
-        ((pixel >> 8) & 0xFF) / 255.0f, // Green
-        ((pixel >> 16) & 0xFF) / 255.0f // Blue
-    );
 }
 
-glm::vec3 Material::sampleSpecularTexture(const glm::vec2& uv) const {
-    if (specularTexture.empty()) {
-        return specularColor; // Return base specular color if no texture is loaded
+glm::vec3 Material::sampleBaseColor(const glm::vec2& uv) const {
+    if (colorMap.empty()) {
+        return baseColor; // Return base color if no texture is loaded
     }
 
-    int texX = std::clamp(int(uv.x * textureWidth), 0, textureWidth - 1);
-    int texY = std::clamp(int(uv.y * textureHeight), 0, textureHeight - 1);
-    uint32_t pixel = specularTexture[texY * textureWidth + texX];
+    int texX = CLAMP(int(uv.x * textureWidth), 0, textureWidth - 1);
+    int texY = CLAMP(int(uv.y * textureHeight), 0, textureHeight - 1);
+    uint32_t pixel = colorMap[texY * textureWidth + texX];
 
-    return glm::vec3(
-        (pixel & 0xFF) / 255.0f,         // Red
-        ((pixel >> 8) & 0xFF) / 255.0f, // Green
-        ((pixel >> 16) & 0xFF) / 255.0f // Blue
-    );
+    return Color::Uint32ToVec(pixel); // Convert pixel to vec3
+}
+
+float Material::sampleRoughness(const glm::vec2& uv) const {
+    if (roughnessMap.empty()) {
+        return roughness; // Return base roughness if no texture is loaded
+    }
+
+    int texX = CLAMP(int(uv.x * textureWidth), 0, textureWidth - 1);
+    int texY = CLAMP(int(uv.y * textureHeight), 0, textureHeight - 1);
+    uint32_t pixel = roughnessMap[texY * textureWidth + texX];
+
+    // Extract the red channel for grayscale roughness
+    float redChannel = (pixel & 0xFF) / 255.0f; // Normalize to [0, 1]
+    return redChannel;
 }
 
 glm::vec3 Material::computeBRDF(
@@ -54,26 +56,38 @@ glm::vec3 Material::computeBRDF(
     const glm::vec3& lightDir,
     const glm::vec3& lightColor) const {
 
-    // Fresnel term (Schlick approximation)
-    glm::vec3 halfDir = glm::normalize(viewDir + lightDir);
-    float NdotH = std::max(glm::dot(normal, halfDir), 0.0f);
-    glm::vec3 F = specularColor + (glm::vec3(1.0f) - specularColor) * glm::pow(1.0f - NdotH, 5.0f);
+    glm::vec3 halfVector = glm::normalize(viewDir + lightDir);
 
-    // Geometry term
-    float NdotV = std::max(glm::dot(normal, viewDir), 0.0f);
-    float NdotL = std::max(glm::dot(normal, lightDir), 0.0f);
-    float k = roughness * roughness / 2.0f;
-    float G = (NdotV * NdotL) / (NdotV * (1.0f - k) + k) * (NdotL * (1.0f - k) + k);
+    float NdotL = glm::max(glm::dot(normal, lightDir), 0.0f);
+    float NdotV = glm::max(glm::dot(normal, viewDir), 0.0f);
+    float NdotH = glm::max(glm::dot(normal, halfVector), 0.0f);
+    float VdotH = glm::max(glm::dot(viewDir, halfVector), 0.0f);
 
-    // Distribution term (GGX)
-    float alpha = roughness * roughness;
-    float alpha2 = alpha * alpha;
-    float denom = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
-    float D = alpha2 / (glm::pi<float>() * denom * denom);
+    // Fresnel (Schlick)
+    glm::vec3 F0 = glm::mix(glm::vec3(0.04f), baseColor, metallic);
+    glm::vec3 F = F0 + (1.0f - F0) * glm::pow(1.0f - VdotH, 5.0f);
 
-    // BRDF
-    glm::vec3 specular = (F * G * D) / (4.0f * NdotV * NdotL + 1e-5f);
-    glm::vec3 diffuse = (1.0f - metallic) * diffuseColor / glm::pi<float>();
+    // GGX Normal Distribution
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float denom = (NdotH * NdotH) * (a2 - 1.0f) + 1.0f;
+    float D = a2 / (glm::pi<float>() * denom * denom);
 
-    return lightColor * (diffuse + specular) * NdotL;
+    // Geometry Smith
+    auto G1 = [](float NdotX, float k) {
+        return NdotX / (NdotX * (1.0f - k) + k);
+    };
+    float k = (roughness + 1.0f) * (roughness + 1.0f) / 8.0f;
+    float G = G1(NdotL, k) * G1(NdotV, k);
+
+    // Specular term
+    glm::vec3 specular = (D * G * F) / (4.0f * NdotV * NdotL + 1e-4f);
+
+    // Diffuse term (Lambert, only for non-metals)
+    glm::vec3 diffuse = (1.0f - F) * baseColor / glm::pi<float>();
+    diffuse *= (1.0f - metallic);
+
+    glm::vec3 result = (diffuse + specular) * lightColor * NdotL;
+
+    return glm::clamp(result, 0.0f, 1.0f);
 }

@@ -1,13 +1,16 @@
 #pragma once
+
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/vec3.hpp> // glm::vec3
 #include <glm/vec4.hpp> // glm::vec4
 #include <glm/mat4x4.hpp> // glm::mat4
 #include <glm/ext/matrix_transform.hpp> // glm::translate, glm::rotate, glm::scale
 #include <glm/ext/matrix_clip_space.hpp> // glm::perspective
 #include <glm/ext/scalar_constants.hpp> // glm::pi
+#include <glm/gtc/quaternion.hpp> // For glm::quat
+#include <glm/gtx/quaternion.hpp> // For glm::lookAt and other quaternion utilities (optional, but useful)
 
 #define EPSILON 1e-6f
-#define FLT_MAX 3.402823466e+38F
 #define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 
 inline glm::vec4 lerp(const glm::vec4& v1, const glm::vec4& v2, float t) {

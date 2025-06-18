@@ -89,10 +89,12 @@ public:
 		: Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), radius(r) {
 		setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::SPHERE); // Mark as primitive
+        updateRadius();
     }
 
     float getRadius() const { return radius; }
-    void setRadius(float r) { radius = r; }
+    void setRadius(float r) { radius = r; updateRadius(); }
+    void updateRadius();
 
     // Sphere intersection logic
     virtual bool intersect(const Ray& ray, Intersection& isect) const override;
@@ -136,12 +138,14 @@ public:
         : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), radius(r), height(h) {
         setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::CYLINDER); // Mark as primitive
+        updateParameters();
     }
 
     float getRadius() const { return radius; }
     float getHeight() const { return height; }
-    void setRadius(float r) { radius = r; }
-    void setHeight(float h) { height = h; }
+    void setRadius(float r) { radius = r; updateParameters(); }
+    void setHeight(float h) { height = h; updateParameters(); }
+    void updateParameters();
 
     virtual bool intersect(const Ray& ray, Intersection& isect) const override;
 };

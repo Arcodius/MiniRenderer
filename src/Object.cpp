@@ -89,6 +89,12 @@ bool GenericObject::intersect(const Ray& ray, Intersection& isect) const {
     return mesh.intersect(ray, isect, material);
 }
 
+void Sphere::updateRadius() {
+    // Update the mesh to match the sphere's radius
+    scale = glm::vec3(radius);
+    update();
+}
+
 bool Sphere::intersect(const Ray& ray, Intersection& isect) const {
     glm::vec3 oc = ray.origin - getPosition();
     float r = radius;
@@ -116,7 +122,6 @@ bool Sphere::intersect(const Ray& ray, Intersection& isect) const {
         return false; // 两个交点都在光线起点之后或非常近，无效
     }
 
-    // --- 移除了 t >= isect.t 的检查 ---
     // 只需要检查t是否有效
     if (t < 0.001f || t >= isect.t) {
 		return false; // 光线方向错误或交点更远
@@ -131,16 +136,22 @@ bool Sphere::intersect(const Ray& ray, Intersection& isect) const {
     return true;
 }
 
-void Plane::updateRotation(){
+void Plane::updateRotation() {
     normal = glm::normalize(normal);
-    glm::vec3 up(0.0f, 1.0f, 0.0f); // 世界坐标系中的上方向
-    glm::vec3 axis = glm::normalize(glm::cross(up, normal)); // 旋转轴
-    float angle = std::acos(glm::dot(up, normal)); // 旋转角度
 
-    if (glm::length(axis) > 1e-6) { // 确保旋转轴有效
-        rotation = glm::degrees(angle) * axis; // 将旋转角度和轴转换为欧拉角表示
+    // 默认平面的法线方向是 (0, 1, 0)，即世界Y轴
+    glm::vec3 defaultNormal(0.0f, 1.0f, 0.0f);
+
+    // 如果 normal 与 defaultNormal 非共线，求旋转
+    if (glm::dot(normal, defaultNormal) < 0.999f) {
+        // 计算旋转四元数
+        glm::quat q = glm::rotation(defaultNormal, normal);
+
+        // 转为欧拉角
+        rotation = glm::eulerAngles(q); // rotation 是 glm::vec3 (radians)
     } else {
-        rotation = glm::vec3(0.0f); // 如果法线与上方向平行，则无需旋转
+        // 如果已经对齐或几乎对齐，无需旋转
+        rotation = glm::vec3(0.0f);
     }
 }
 
@@ -150,25 +161,42 @@ bool Plane::intersect(const Ray& ray, Intersection& isect) const {
     float denom = glm::dot(normal, ray.direction);
     if (std::abs(denom) < 1e-6) return false; // 光线与平面平行
 
+    if (denom > 0.0f) return false; // 光线方向与平面法线方向相反
+
     float t = -(glm::dot(normal, ray.origin) + d) / denom;
     if (t < 0.001f || t >= isect.t) return false; // 光线方向错误或交点更远
 
-    if (finite){
+    glm::vec3 hitPoint = ray.origin + t * ray.direction;
+
+    if (finite) {
         // 计算交点位置
-        glm::vec3 hitPoint = ray.origin + t * ray.direction;
+        glm::vec3 localPoint = hitPoint - position; // 转换到局部空间
 
-        // 检查交点是否在平面的边界范围内
-        glm::vec3 localPoint = hitPoint - position; // local space (not divided by scale)
-        float halfWidth = scale.x * 0.5f; // 平面的宽度的一半
-        float halfHeight = scale.z * 0.5f; // 平面的高度的一半
-
-        if (std::abs(localPoint.x) > halfWidth || std::abs(localPoint.z) > halfHeight) {
-            return false; // 交点超出边界
+        // 根据平面的法线方向，确定边界检查的轴
+        glm::vec3 absNormal = glm::abs(normal);
+        float halfWidth = scale.x; // 平面的宽度的一半，但一般为2*2平面，故不做修改
+        float halfHeight = scale.z; // 平面的高度的一半
+        
+        if (absNormal.x > 0.99f) { // 平面垂直X轴，XY为边界轴
+            if (localPoint.y < -halfHeight || localPoint.y > halfHeight ||
+                localPoint.z < -halfWidth  || localPoint.z > halfWidth) {
+                return false;
+            }
+        } else if (absNormal.y > 0.99f) { // 平面垂直Y轴，XZ为边界轴
+            if (localPoint.x < -halfWidth || localPoint.x > halfWidth ||
+                localPoint.z < -halfHeight || localPoint.z > halfHeight) {
+                return false;
+            }
+        } else if (absNormal.z > 0.99f) { // 平面垂直Z轴，XY为边界轴
+            if (localPoint.x < -halfWidth || localPoint.x > halfWidth ||
+                localPoint.y < -halfHeight || localPoint.y > halfHeight) {
+                return false;
+            }
         }
 
         isect.position = hitPoint;
-    } else{
-        isect.position = ray.origin + t * ray.direction;
+    } else {
+        isect.position = hitPoint;
     }
 
     isect.t = t;
@@ -243,6 +271,12 @@ bool Cube::intersect(const Ray& ray, Intersection& isect) const {
     isect.hit = true;
 
     return true;
+}
+
+void Cylinder::updateParameters(){
+    float standardRatio = 2.0f; // 标准圆柱的比例: height = 2 * radius, radius = 1, height = 2
+    float heightScale = height / (radius * standardRatio);
+    scale = glm::vec3(radius, heightScale, radius); // 更新缩放比例
 }
 
 bool Cylinder::intersect(const Ray& ray, Intersection& isect) const {

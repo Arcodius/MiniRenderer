@@ -110,7 +110,7 @@ std::vector<uint32_t> ResourceLoader::loadTextureFromFile(const std::string& pat
         return {};
     }
     std::vector<uint32_t> textureData(texWidth * texHeight);
-    std::memcpy(textureData.data(), data, texWidth * texHeight * 4); // Copy texture data
+    memcpy(textureData.data(), data, texWidth * texHeight * 4); // Copy texture data
     stbi_image_free(data);
     return textureData;
 }

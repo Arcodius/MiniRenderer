@@ -7,41 +7,40 @@
 #include "MyMath.h"
 
 class Material {
-    private:
+private:
     std::string name;
+
 public:
-    // Basic properties
-    glm::vec3 diffuseColor;    // Diffuse color
-    float reflectivity;        // 0 to 1
-    float transparency;        // 0 to 1
-    float refractiveIndex;     // >1 for real materials
+    // PBR Core
+    glm::vec3 baseColor;   // aka albedo
+    float metallic;        // 0 = dielectric, 1 = metal
+    float roughness;       // 0 = smooth, 1 = rough
+    float ior;             // Index of Refraction (dielectrics only)
+    float transparency;    // 0 = opaque, 1 = fully transparent
 
-    // BRDF-related properties
-    glm::vec3 specularColor;   // Specular color
-    float shininess;            // Shininess factor (0 = no shine, higher = more shine)
-    float roughness;           // Roughness (0 = perfect mirror, 1 = fully diffuse)
-    float metallic;            // Metallic factor (0 = non-metal, 1 = pure metal)
+    // Optional maps
+    std::vector<uint32_t> colorMap;
+    std::vector<uint32_t> roughnessMap;
+    std::vector<uint32_t> normalMap;
+    int textureWidth = 0, textureHeight = 0;
 
-    // Texture maps
-    std::vector<uint32_t> diffuseTexture;  // Diffuse texture
-    std::vector<uint32_t> specularTexture; // Specular texture
-    int textureWidth = 0, textureHeight = 0; // Texture dimensions
+    Material(const std::string& name = "default")
+        : name(name),
+          baseColor(1.0f), metallic(0.0f), roughness(0.5f),
+          ior(1.5f), transparency(0.0f) {}
 
-    Material(std::string name = "default")
-        : name(name), diffuseColor(1.0f), reflectivity(0.0f), transparency(0.0f), refractiveIndex(1.0f),
-          specularColor(1.0f), shininess(0.75f), roughness(0.5f), metallic(0.0f) {}
-    
     std::string get_name() const { return name; }
 
     // Load texture data
-    void loadDiffuseTexture(const std::string& path);
-    void loadSpecularTexture(const std::string& path);
+    void loadBaseColorMap(const std::string& path);
+    void loadRoughnessMap(const std::string& path);
+    void loadNormalMap(const std::string& path);
 
-    // Sample texture at UV coordinates
-    glm::vec3 sampleDiffuseTexture(const glm::vec2& uv) const;
-    glm::vec3 sampleSpecularTexture(const glm::vec2& uv) const;
+    // Texture sampling
+    glm::vec3 sampleBaseColor(const glm::vec2& uv) const;
+    float sampleRoughness(const glm::vec2& uv) const;
 
-    // BRDF computation (Cook-Torrance model)
+    // Core BRDF (Cook-Torrance)
     glm::vec3 computeBRDF(
         const glm::vec3& normal,
         const glm::vec3& viewDir,

@@ -10,12 +10,7 @@ void Mesh::clear() {
 }
 
 void Mesh::applyTransform(const glm::mat4& transform) {
-    // output(); // Debug: Print mesh info
-
     glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(transform)));
-
-    // std::cout << "Transform matrix:\n" << glm::to_string(transform) << std::endl;
-    // std::cout << "Normal matrix:\n" << glm::to_string(normalMatrix) << std::endl;
 
     for (Vertex& vertex : vertices) {
         glm::vec4 pos = transform * glm::vec4(vertex.localPos, 1.0f);
@@ -36,11 +31,7 @@ void Mesh::applyTransform(const glm::mat4& transform) {
             printf("Orig normal: (%.3f, %.3f, %.3f)\n", vertex.normal.x, vertex.normal.y, vertex.normal.z);
             vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f); // Fallback
         }
-
-        // printf("Transformed normal: (%.3f, %.3f, %.3f)\n", vertex.normal.x, vertex.normal.y, vertex.normal.z);
     }
-
-    // exit(0); // Debug exit
 }
 
 bool Mesh::intersect(const Ray& ray, Intersection& isect, const std::shared_ptr<Material>& material) const {
