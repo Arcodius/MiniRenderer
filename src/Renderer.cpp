@@ -3,10 +3,10 @@
 #include <array>   // Include <array> for std::array usage
 #include "Color.h"
 #include "Intersection.h"
+#include "Material.h"
 #include "Ray.h"
 #include "ResourceLoader.h"
 #include "Scene.h"
-#include "Line.h" // Ensure the definition of Line is included
 
 
 //#include "Debug.h"
@@ -47,108 +47,35 @@ std::vector<glm::vec3> Renderer::clipToScreen(const glm::vec3& v0, const glm::ve
 
     return clippedVertices;
 }
-// Helper to interpolate vertex attributes for new vertices created during clipping
-Vertex interpolate_vertex(const Vertex& v0, const Vertex& v1, float t) {
-    Vertex result;
-    result.worldPos = lerp(v0.worldPos, v1.worldPos, t);
-    result.normal = glm::normalize(lerp(v0.normal, v1.normal, t));
-    result.uv = lerp(v0.uv, v1.uv, t);
-    // Note: Other vertex attributes like color would be interpolated here too.
-    return result;
+
+VertexShaderOutput vertexShader(const Vertex& in, const glm::mat4& model, const glm::mat3& normalMat, const glm::mat4& mvp) {
+    VertexShaderOutput out;
+    glm::vec4 worldPos4 = model * glm::vec4(in.localPos, 1.0f);
+    out.clipPos = mvp * glm::vec4(in.localPos, 1.0f);
+    out.worldPos = glm::vec3(worldPos4);
+    out.normal = glm::normalize(normalMat * in.normal);
+    out.uv = in.uv;
+    out.w = out.clipPos.w;
+    return out;
 }
 
-// Clips a triangle against the w=EPSILON plane in clip space.
-// Outputs 0, 1, or 2 triangles into the `clipped_triangles` vector.
-void clip_triangle_against_near_plane(
-    const Vertex& v0, const Vertex& v1, const Vertex& v2,
-    const glm::vec4& clip0, const glm::vec4& clip1, const glm::vec4& clip2,
-    std::vector<std::array<Vertex, 3>>& clipped_triangles)
-{
-    // Store vertices and their clip-space counterparts
-    const Vertex vertices[] = { v0, v1, v2 };
-    const glm::vec4 clip_coords[] = { clip0, clip1, clip2 };
-
-    std::vector<Vertex> inside_points;
-    std::vector<Vertex> outside_points;
-    
-    // Classify vertices
-    for (int i = 0; i < 3; ++i) {
-        if (clip_coords[i].w >= EPSILON) {
-            inside_points.push_back(vertices[i]);
-        } else {
-            outside_points.push_back(vertices[i]);
-        }
-    }
-
-    // Based on the number of inside points, generate new triangles
-    if (inside_points.size() == 3) {
-        // Case 1: All vertices are inside, keep original triangle
-        clipped_triangles.push_back({ v0, v1, v2 });
-    }
-    else if (inside_points.size() == 1 && outside_points.size() == 2) {
-        // Case 2: One vertex inside, form one new triangle
-        const Vertex& in_v = inside_points[0];
-        const Vertex& out_v0 = outside_points[0];
-        const Vertex& out_v1 = outside_points[1];
-        
-        // Find corresponding clip coordinates to calculate interpolation factor 't'
-        auto find_clip = [&](const Vertex& v) { 
-            if (v.worldPos == v0.worldPos) return clip0;
-            if (v.worldPos == v1.worldPos) return clip1;
-            return clip2;
-        };
-
-        glm::vec4 in_c = find_clip(in_v);
-        glm::vec4 out_c0 = find_clip(out_v0);
-        glm::vec4 out_c1 = find_clip(out_v1);
-
-        // Calculate intersection points
-        float t0 = (EPSILON - in_c.w) / (out_c0.w - in_c.w);
-        Vertex new_v0 = interpolate_vertex(in_v, out_v0, t0);
-
-        float t1 = (EPSILON - in_c.w) / (out_c1.w - in_c.w);
-        Vertex new_v1 = interpolate_vertex(in_v, out_v1, t1);
-
-        clipped_triangles.push_back({ in_v, new_v0, new_v1 });
-    }
-    else if (inside_points.size() == 2 && outside_points.size() == 1) {
-        // Case 3: Two vertices inside, form a quad (two triangles)
-        const Vertex& in_v0 = inside_points[0];
-        const Vertex& in_v1 = inside_points[1];
-        const Vertex& out_v = outside_points[0];
-        
-        auto find_clip = [&](const Vertex& v) { 
-            if (v.worldPos == v0.worldPos) return clip0;
-            if (v.worldPos == v1.worldPos) return clip1;
-            return clip2;
-        };
-
-        glm::vec4 in_c0 = find_clip(in_v0);
-        glm::vec4 in_c1 = find_clip(in_v1);
-        glm::vec4 out_c = find_clip(out_v);
-
-        // First new vertex
-        float t0 = (EPSILON - in_c0.w) / (out_c.w - in_c0.w);
-        Vertex new_v0 = interpolate_vertex(in_v0, out_v, t0);
-        
-        // Second new vertex
-        float t1 = (EPSILON - in_c1.w) / (out_c.w - in_c1.w);
-        Vertex new_v1 = interpolate_vertex(in_v1, out_v, t1);
-
-        // Create two new triangles to form the quad
-        clipped_triangles.push_back({ in_v0, in_v1, new_v0 });
-        clipped_triangles.push_back({ in_v1, new_v1, new_v0 });
-    }
-    // Case 4: (inside_points.size() == 0) -> all outside, do nothing (discard)
+VertexShaderOutput interpolate(const VertexShaderOutput& a, const VertexShaderOutput& b, float alpha) {
+    VertexShaderOutput out;
+    out.clipPos = glm::mix(a.clipPos, b.clipPos, alpha);
+    out.worldPos = glm::mix(a.worldPos, b.worldPos, alpha);
+    out.normal = glm::normalize(glm::mix(a.normal, b.normal, alpha));
+    out.uv = glm::mix(a.uv, b.uv, alpha);
+    out.w = glm::mix(a.w, b.w, alpha);
+    return out;
 }
+
 // v: vertex
 // s: point in screen space
 // w: world space position
 void Renderer::_drawTrianglePhong(
-    const Vertex& v0, const Vertex& v1, const Vertex& v2,
+    const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
     const glm::vec3& s0, const glm::vec3& s1, const glm::vec3& s2,
-    const float& w0, const float& w1, const float& w2,
-    const std::vector<std::shared_ptr< Light >>& lights, const Camera& camera) {
+    const std::vector<std::shared_ptr< Light >>& lights, const Camera& camera, std::shared_ptr<Material> material) {
     // if (w0 < EPSILON || w1 < EPSILON || w2 < EPSILON) {
     //     // printf("skipped point: w0=%.2f, w1=%.2f, w2=%.2f\n", w0, w1, w2);
     //     return; // 避免除以零
@@ -161,12 +88,12 @@ void Renderer::_drawTrianglePhong(
         return; // 退化三角形
     } // 退化三角形
     if (area < 0.0f) {
-        _drawTrianglePhong(v0, v2, v1, s0, s2, s1, w0, w2, w1, lights, camera);
+        _drawTrianglePhong(v0, v2, v1, s0, s2, s1, lights, camera, material);
         return;
     }
-    float invW0 = 1.0f / w0;
-    float invW1 = 1.0f / w1;
-    float invW2 = 1.0f / w2;
+    float invW0 = 1.0f / v0.w;
+    float invW1 = 1.0f / v1.w;
+    float invW2 = 1.0f / v2.w;
     glm::vec2 uv0_w = v0.uv * invW0;
     glm::vec2 uv1_w = v1.uv * invW1;
     glm::vec2 uv2_w = v2.uv * invW2;
@@ -186,21 +113,9 @@ void Renderer::_drawTrianglePhong(
                 float a = (glm::cross(s1 - p, s2 - p)).z / area;
                 float b = (glm::cross(s2 - p, s0 - p)).z / area;
                 float c = (glm::cross(s0 - p, s1 - p)).z / area;
-                // // --- SOLUTION 1: Check Barycentric Coords ---
-                // // If the barycentric coordinates have exploded, they are no longer valid.
-                // if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(c)) {
-                //     continue; // Skip this unstable pixel
-                // }
 
-                // Proceed with interpolation
                 float z = a * s0.z + b * s1.z + c * s2.z;
                 int idx = y * screenWidth + x;
-
-                // // --- SOLUTION 2: Check Interpolated Depth ---
-                // // A final check on z before the z-buffer test is the most robust solution.
-                // if (!std::isfinite(z)) {
-                //     continue; // Skip this unstable pixel
-                // }
                 
                 if (z < zbuffer[idx]) {
                     zbuffer[idx] = z;
@@ -210,10 +125,14 @@ void Renderer::_drawTrianglePhong(
                     // 透视修正插值 uv
                     float invW = a * invW0 + b * invW1 + c * invW2;
                     glm::vec2 uv = (a * uv0_w + b * uv1_w + c * uv2_w) / invW;
-                    //glm::vec3 color = normal; // Debug：显示 normal，范围应该在 [-1,1]
-                    glm::vec3 baseColor = sampleTexture(textureData, uv, textureWidth, textureHeight);
-                    glm::vec3 color = _computePhongColor(pos, normal, lights[0], camera.getPosition(), baseColor);
-                    // color = normal;
+                    // glm::vec3 baseColor = sampleTexture(textureData, uv, textureWidth, textureHeight);
+                    glm::vec3 baseColor = material->sampleBaseColor(uv);
+                    glm::vec3 color = glm::vec3(0.0f);
+                    for (const auto& light : lights) {
+                        if (light->getDistance(pos) < EPSILON) continue; // 避免光源距离过近
+                        color += _computePhongColor(pos, normal, light, camera.getPosition(), baseColor);
+                    }
+                    color = glm::clamp(color, 0.0f, 1.0f); // 确保颜色在 [0, 1] 范围内
                     framebuffer[idx] = Color::VecToUint32(color); // 映射 [-1,1] → [0,1]
                 }
             }
@@ -245,65 +164,61 @@ glm::vec3 Renderer::sampleTexture(const std::vector<uint32_t>& textureData, glm:
     return Color::Uint32ToVec(textureData[texY * texWidth + texX]); // 纹理采样
 }
 
-
-// Helper to interpolate a full ClippedVertex
-ClippedVertex interpolate_clipped_vertex(const ClippedVertex& v0, const ClippedVertex& v1, float t) {
-    ClippedVertex result;
-    result.vertex = interpolate_vertex(v0.vertex, v1.vertex, t); // Your existing helper
-    result.clipPos = lerp(v0.clipPos, v1.clipPos, t);
-    return result;
+glm::vec3 Renderer::ndcToScreen(const glm::vec3& ndc) const {
+    float x = (ndc.x + 1.0f) * 0.5f * screenWidth;
+    float y = (1.0f - ndc.y) * 0.5f * screenHeight; // 注意y翻转
+    float z = (ndc.z + 1.0f) * 0.5f; // depth: [0, 1] for z-buffer
+    return glm::vec3(x, y, z);
 }
 
-// MODIFIED clipping function
-void clip_triangle_against_near_plane(
-    const ClippedVertex& cv0, const ClippedVertex& cv1, const ClippedVertex& cv2,
-    std::vector<std::array<ClippedVertex, 3>>& clipped_tris) 
+
+void Renderer::clip_triangle_against_near_plane(
+    const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
+    std::vector<std::array<VertexShaderOutput, 3>>& clipped_tris)
 {
-    const ClippedVertex clipped_vertices[] = { cv0, cv1, cv2 };
-    std::vector<ClippedVertex> inside_points;
-    std::vector<ClippedVertex> outside_points;
+    const VertexShaderOutput vertices[] = { v0, v1, v2 };
+    std::vector<VertexShaderOutput> inside_points;
+    std::vector<VertexShaderOutput> outside_points;
 
     for (int i = 0; i < 3; ++i) {
-        if (clipped_vertices[i].clipPos.w >= EPSILON) {
-            inside_points.push_back(clipped_vertices[i]);
+        if (vertices[i].clipPos.w >= EPSILON) {
+            inside_points.push_back(vertices[i]);
         } else {
-            outside_points.push_back(clipped_vertices[i]);
+            outside_points.push_back(vertices[i]);
         }
     }
 
     if (inside_points.size() == 3) {
-        clipped_tris.push_back({ cv0, cv1, cv2 });
+        clipped_tris.push_back({ v0, v1, v2 });
     }
     else if (inside_points.size() == 1 && outside_points.size() == 2) {
-        const ClippedVertex& in_v = inside_points[0];
-        const ClippedVertex& out_v0 = outside_points[0];
-        const ClippedVertex& out_v1 = outside_points[1];
+        const VertexShaderOutput& in_v = inside_points[0];
+        const VertexShaderOutput& out_v0 = outside_points[0];
+        const VertexShaderOutput& out_v1 = outside_points[1];
 
         float t0 = (EPSILON - in_v.clipPos.w) / (out_v0.clipPos.w - in_v.clipPos.w);
-        ClippedVertex new_v0 = interpolate_clipped_vertex(in_v, out_v0, t0);
-
         float t1 = (EPSILON - in_v.clipPos.w) / (out_v1.clipPos.w - in_v.clipPos.w);
-        ClippedVertex new_v1 = interpolate_clipped_vertex(in_v, out_v1, t1);
+
+        VertexShaderOutput new_v0 = interpolate(in_v, out_v0, t0);
+        VertexShaderOutput new_v1 = interpolate(in_v, out_v1, t1);
 
         clipped_tris.push_back({ in_v, new_v0, new_v1 });
     }
     else if (inside_points.size() == 2 && outside_points.size() == 1) {
-        const ClippedVertex& in_v0 = inside_points[0];
-        const ClippedVertex& in_v1 = inside_points[1];
-        const ClippedVertex& out_v = outside_points[0];
+        const VertexShaderOutput& in_v0 = inside_points[0];
+        const VertexShaderOutput& in_v1 = inside_points[1];
+        const VertexShaderOutput& out_v = outside_points[0];
 
         float t0 = (EPSILON - in_v0.clipPos.w) / (out_v.clipPos.w - in_v0.clipPos.w);
-        ClippedVertex new_v0 = interpolate_clipped_vertex(in_v0, out_v, t0);
-
         float t1 = (EPSILON - in_v1.clipPos.w) / (out_v.clipPos.w - in_v1.clipPos.w);
-        ClippedVertex new_v1 = interpolate_clipped_vertex(in_v1, out_v, t1);
+
+        VertexShaderOutput new_v0 = interpolate(in_v0, out_v, t0);
+        VertexShaderOutput new_v1 = interpolate(in_v1, out_v, t1);
 
         clipped_tris.push_back({ in_v0, in_v1, new_v0 });
         clipped_tris.push_back({ in_v1, new_v1, new_v0 });
     }
 }
-
-
 
 void Renderer::render(Scene scene) {
     clearBuffers();
@@ -311,76 +226,33 @@ void Renderer::render(Scene scene) {
     glm::mat4 projectionMatrix = scene.camera.getProjectionMatrix();
     glm::mat4 viewMatrix = scene.camera.getViewMatrix();
     glm::mat4 viewProjectionMatrix = projectionMatrix * viewMatrix;
-    printf("-----------------------------\n");
     for (const auto& objectPtr : scene.objects) {
         Object& object = *objectPtr;
-        const glm::mat4 modelMatrix = object.getMatrix();
-        const glm::mat4 mvp = viewProjectionMatrix * modelMatrix;
-        
+        glm::mat4 modelMatrix = object.getMatrix();
+        glm::mat4 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
+        glm::mat4 mvp = viewProjectionMatrix * modelMatrix;
+
         const Mesh& mesh = object.getMesh();
         const std::vector<Vertex>& vertices = mesh.vertices;
         const std::vector<unsigned int>& indices = mesh.indices;
-        // printf("Rendering object: %s\n", object.getName().c_str());
-        // if (object.getName() == std::string("Resources\\plane.obj")){
-        //     // For debugging, render the plane as a wireframe
-        //     printf("plane's transform attributes:\n");
-        //     printf("position: (%.2f, %.2f, %.2f)\n", object.getPosition().x, object.getPosition().y, object.getPosition().z);
-        //     printf("rotation: (%.2f, %.2f, %.2f)\n", object.getRotation().x, object.getRotation().y, object.getRotation().z);
-        //     printf("scale: (%.2f, %.2f, %.2f)\n", object.getScale().x, object.getScale().y, object.getScale().z);
-        //     printf("model matrix:\n");
-        //     for (int i = 0; i < 4; ++i) {
-        //         for (int j = 0; j < 4; ++j) {
-        //             printf("%.2f ", modelMatrix[i][j]);
-        //         }
-        //         printf("\n");
-        //     }
-        // }
 
         #pragma omp parallel for
         for (size_t i = 0; i < indices.size(); i += 3) {
-            // Package original vertices with their clip-space positions
-            ClippedVertex cv0 = { vertices[indices[i]],   mvp * glm::vec4(vertices[indices[i]].worldPos, 1.0f) };
-            ClippedVertex cv1 = { vertices[indices[i+1]], mvp * glm::vec4(vertices[indices[i+1]].worldPos, 1.0f) };
-            ClippedVertex cv2 = { vertices[indices[i+2]], mvp * glm::vec4(vertices[indices[i+2]].worldPos, 1.0f) };
+            VertexShaderOutput v0 = vertexShader(vertices[indices[i]], modelMatrix, normalMatrix, mvp);
+            VertexShaderOutput v1 = vertexShader(vertices[indices[i+1]], modelMatrix, normalMatrix, mvp);
+            VertexShaderOutput v2 = vertexShader(vertices[indices[i+2]], modelMatrix, normalMatrix, mvp);
 
-            // Optional: Back-face culling on original vertices
-            if (_isBackFacingViewSpace(cv0.vertex.worldPos, cv1.vertex.worldPos, cv2.vertex.worldPos, scene.camera.getPosition())) {
-                continue;
-            }
+            // 剪裁（保留完整结构体）
+            std::vector<std::array<VertexShaderOutput, 3>> clippedTriangles;
+            clip_triangle_against_near_plane(v0, v1, v2, clippedTriangles);
 
-            // Perform clipping
-            std::vector<std::array<ClippedVertex, 3>> clipped_triangles;
-            clip_triangle_against_near_plane(cv0, cv1, cv2, clipped_triangles);
+            for (const auto& tri : clippedTriangles) {
+                // Perspective divide and viewport transform
+                glm::vec3 s0 = ndcToScreen(tri[0].clipPos / tri[0].clipPos.w);
+                glm::vec3 s1 = ndcToScreen(tri[1].clipPos / tri[1].clipPos.w);
+                glm::vec3 s2 = ndcToScreen(tri[2].clipPos / tri[2].clipPos.w);
 
-            // Process each resulting (clipped) triangle
-            for (const auto& tri : clipped_triangles) {
-                const ClippedVertex& new_cv0 = tri[0];
-                const ClippedVertex& new_cv1 = tri[1];
-                const ClippedVertex& new_cv2 = tri[2];
-
-                // **NO RE-PROJECTION**. Use the interpolated clip coordinates directly.
-                glm::vec4 clip0 = new_cv0.clipPos;
-                glm::vec4 clip1 = new_cv1.clipPos;
-                glm::vec4 clip2 = new_cv2.clipPos;
-
-                // By definition, the w-component of any new vertex will now be exactly EPSILON,
-                // and the w of original vertices will be unchanged. This prevents division by zero.
-
-                // Perform perspective divide and viewport transform
-                glm::vec3 ndc0 = glm::vec3(clip0) / clip0.w;
-                glm::vec3 ndc1 = glm::vec3(clip1) / clip1.w;
-                glm::vec3 ndc2 = glm::vec3(clip2) / clip2.w;
-
-                glm::vec3 s0 = { (ndc0.x + 1.0f) * 0.5f * screenWidth, (1.0f - ndc0.y) * 0.5f * screenHeight, (ndc0.z + 1.0f) * 0.5f };
-                glm::vec3 s1 = { (ndc1.x + 1.0f) * 0.5f * screenWidth, (1.0f - ndc1.y) * 0.5f * screenHeight, (ndc1.z + 1.0f) * 0.5f };
-                glm::vec3 s2 = { (ndc2.x + 1.0f) * 0.5f * screenWidth, (1.0f - ndc2.y) * 0.5f * screenHeight, (ndc2.z + 1.0f) * 0.5f };
-                _drawTrianglePhong(
-                    new_cv0.vertex, new_cv1.vertex, new_cv2.vertex,
-                    s0, s1, s2,
-                    clip0.w, clip1.w, clip2.w, // Use the correct w values
-                    scene.lights, scene.camera
-                );
-
+                _drawTrianglePhong(tri[0], tri[1], tri[2], s0, s1, s2, scene.lights, scene.camera, object.getMaterial());
             }
         }
     }

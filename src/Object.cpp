@@ -14,7 +14,6 @@ void Object::update() {
                                glm::rotate(glm::mat4(1.0f), rotation.x, glm::vec3(1, 0, 0));
     glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), scale);
     matrix = translationMatrix * rotationMatrix * scaleMatrix;
-	mesh.applyTransform(matrix);
 }
 
 

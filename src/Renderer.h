@@ -9,6 +9,7 @@ class Camera;
 struct Intersection;
 class Light;
 class Line;
+class Material;
 struct Ray;
 class Scene;
 struct Vertex;
@@ -30,18 +31,17 @@ private:
     static bool _insideTriangle(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
 
 	static std::vector<glm::vec3> clipToScreen(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, int screenWidth, int screenHeight);
-	static glm::vec4 _screenToClip(const glm::vec4& s, int screenWidth, int screenHeight);
-	glm::vec4 _ProjectToScreen(const glm::vec3& v, const glm::mat4& mvp, int w, int h);
+	glm::vec3 ndcToScreen(const glm::vec3& ndc) const;
+    void clip_triangle_against_near_plane(const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
+        std::vector<std::array<VertexShaderOutput, 3>>& clipped_tris);
 	glm::vec3 _computePhongColor(const glm::vec3& pos, const glm::vec3& normal, const std::shared_ptr<Light>& light, const glm::vec3& cameraPos, const glm::vec3& baseColor);
 
 	void _drawTrianglePhong(
-		const Vertex& v0_, const Vertex& v1_, const Vertex& v2_,
-		const glm::vec3& s0_, const glm::vec3& s1_, const glm::vec3& s2_,
-		const float& w0_, const float& w1_, const float& w2_,
-		const std::vector<std::shared_ptr< Light >>& lights, const Camera& camera);
+		const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
+        const glm::vec3& s0, const glm::vec3& s1, const glm::vec3& s2,
+		const std::vector<std::shared_ptr< Light >>& lights, const Camera& camera, std::shared_ptr<Material> material);
 
 	// ray tracing
-	glm::vec3 computeLocalShading(const Intersection& isect, const Scene& scene);
 	Ray computeReflectedRay(const Ray& ray, const Intersection& isect);
 	Ray computeRefractedRay(const Ray& ray, const Intersection& isect);
 
