@@ -16,14 +16,12 @@ struct Vertex;
 
 class Renderer {
 private:
-	static constexpr int MAX_DEPTH = 5; // Maximum recursion depth for ray tracing
+	static constexpr int MAX_DEPTH = 2; // Maximum recursion depth for ray tracing
 
 public:
 	int screenWidth, screenHeight;
 	Buffer<uint32_t> framebuffer;
 	Buffer<float> zbuffer;
-	int textureWidth = 0, textureHeight = 0; // texture size
-	std::vector<uint32_t> textureData;
 private:
 	// rasterization
 	glm::vec3 sampleTexture(const std::vector<uint32_t>& textureData, glm::vec2 uv, int texWidth, int texHeight);

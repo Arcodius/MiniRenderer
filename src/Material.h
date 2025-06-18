@@ -26,7 +26,7 @@ public:
 
     Material(const std::string& name = "default")
         : name(name),
-          baseColor(1.0f), metallic(0.0f), roughness(0.5f),
+          baseColor(0.8f), metallic(0.0f), roughness(0.5f),
           ior(1.5f), transparency(0.0f) {}
 
     std::string get_name() const { return name; }
@@ -46,4 +46,6 @@ public:
         const glm::vec3& viewDir,
         const glm::vec3& lightDir,
         const glm::vec3& lightColor) const;
+    
+    static std::shared_ptr<Material> defualtMat() { return std::make_shared<Material>("default"); }
 };

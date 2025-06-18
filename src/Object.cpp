@@ -84,8 +84,9 @@ void Object::setAsPrimitive(Object::PrimitiveType PrimitiveType) {
 	}
 }
 
-void GenericObject::updateMesh() {
+void Object::updateMesh() {
     update();
+    mesh.triangles.clear();
     glm::mat4 modelMatrix = getMatrix();
     glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
     for (size_t i = 0; i < mesh.indices.size(); i += 3) {
@@ -95,11 +96,11 @@ void GenericObject::updateMesh() {
             glm::vec3 worldNormal = glm::normalize(normalMatrix * mesh.vertices[mesh.indices[i + j]].normal);
             transformedVertics[j] = TransformedVertex(worldPos, worldNormal, mesh.vertices[mesh.indices[i + j]].uv);
         }
-        mesh.triangles.emplace_back(Triangle(transformedVertics[0], transformedVertics[1], transformedVertics[2]));
+        mesh.triangles.push_back(Triangle(transformedVertics[0], transformedVertics[1], transformedVertics[2], material));
     }
-    printf("GenericObject updated mesh with %zu triangles.\n", mesh.triangles.size());
 }
 
+// 逐三角形求交
 bool GenericObject::intersect(const Ray& ray, Intersection& isect) const {
     return mesh.intersect(ray, isect, material);
 }

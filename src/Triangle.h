@@ -17,14 +17,17 @@ struct TransformedVertex {
 
 struct Triangle{
     std::array<TransformedVertex, 3> vertices;
+    std::shared_ptr<Material> material;
 
-    Triangle(const TransformedVertex& v0, const TransformedVertex& v1, const TransformedVertex& v2) {
+    Triangle(const TransformedVertex& v0, const TransformedVertex& v1, const TransformedVertex& v2, 
+             const std::shared_ptr<Material>& mat) {
         vertices[0] = v0;
         vertices[1] = v1;
         vertices[2] = v2;
+        material = mat;
     }
-    Triangle(): vertices{ TransformedVertex(), TransformedVertex(), TransformedVertex() } {};
+    Triangle(): vertices{ TransformedVertex(), TransformedVertex(), TransformedVertex()}, material(Material::defualtMat()) {};
 
     // Möller-Trumbore algorithm
-    bool intersect(const Ray& ray, Intersection& isect, const std::shared_ptr<Material>& material) const;
+    bool intersect(const Ray& ray, Intersection& isect) const;
 };

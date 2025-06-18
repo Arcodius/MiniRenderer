@@ -13,6 +13,9 @@ public:
 	std::vector<unsigned int> indices;
     std::vector<Triangle> triangles;
 
+    size_t firstTriangleIdx = -1;
+    size_t numTriangles = 0;
+
     Mesh();
     Mesh(const std::string& path);
     
@@ -20,16 +23,10 @@ public:
     void setName(const std::string& newName) { name = newName; }
 	void clear();
 
-    void output() const {
-        printf("Mesh: %s\n", name.c_str());
-        printf("Vertices: %zu, Indices: %zu\n", vertices.size(), indices.size());
-        for (const auto& vertex : vertices) {
-            printf("Vertex: pos=(%.2f, %.2f, %.2f), normal=(%.2f, %.2f, %.2f), uv=(%.2f, %.2f)\n",
-                vertex.localPos.x, vertex.localPos.y, vertex.localPos.z,
-                vertex.normal.x, vertex.normal.y, vertex.normal.z,
-                vertex.uv.x, vertex.uv.y);
-        }
-    }
+    void output() const;
 
+    // 逐三角形求交
     bool intersect(const Ray& ray, Intersection& isect, const std::shared_ptr<Material>& material) const;
+    // BVH求交
+    bool intersect(const Ray& ray, Intersection& isect) const;
 };

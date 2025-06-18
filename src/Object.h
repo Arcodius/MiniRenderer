@@ -59,6 +59,8 @@ public:
 
 	void setMesh(const std::string& meshPath);
 	Mesh& getMesh() { return mesh; }
+    // update matrix, apply to vertices, create triangles with material
+    void updateMesh(); 
 
 	void setAsPrimitive(Object::PrimitiveType PrimitiveType);
 
@@ -71,12 +73,14 @@ public:
 
 class GenericObject : public Object {
 public:
-    GenericObject(const Mesh& mesh, const glm::vec3& position, const glm::vec3& rotation, const glm::vec3& scale)
+    GenericObject(const Mesh& mesh, const glm::vec3& position, const glm::vec3& rotation, const glm::vec3& scale, 
+                  const std::shared_ptr<Material>& mat)
         : Object(mesh, position, rotation, scale) {
         isPrimitive = false; // 标记为非原始物体
-        updateMesh(); // update matrix and apply to vertices
+        material = mat;
+        updateMesh(); 
     }
-    void updateMesh();
+    
     // iterate through all triangles to look for intersection
     virtual bool intersect(const Ray& ray, Intersection& isect) const override;
 };
@@ -91,6 +95,7 @@ public:
 		setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::SPHERE); // Mark as primitive
         updateRadius();
+        updateMesh();
     }
 
     float getRadius() const { return radius; }
@@ -111,6 +116,7 @@ public:
         updateRotation();
         setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::PLANE); // Mark as primitive
+        updateMesh();
     }
     void updateRotation();
     virtual bool intersect(const Ray& ray, Intersection& isect) const override;
@@ -123,6 +129,7 @@ public:
         : Object(Mesh(), position, glm::vec3(0.0f), scale) {
         setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::CUBE); // Mark as primitive
+        updateMesh();
     }
 	
     virtual bool intersect(const Ray& ray, Intersection& isect) const override;
@@ -140,6 +147,7 @@ public:
         setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::CYLINDER); // Mark as primitive
         updateParameters();
+        updateMesh();
     }
 
     float getRadius() const { return radius; }
@@ -162,6 +170,7 @@ public:
         : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), radius(r), height(h) {
         setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::CONE); // Mark as primitive
+        updateMesh();
     }
 
     float getRadius() const { return radius; }
@@ -184,6 +193,7 @@ public:
         : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), majorRadius(majorR), minorRadius(minorR) {
         setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::TORUS); // Mark as primitive
+        updateMesh();
     }
 
     float getMajorRadius() const { return majorRadius; }

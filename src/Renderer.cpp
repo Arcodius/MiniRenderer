@@ -283,7 +283,6 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
     if (!scene.intersect(ray, intersection)) {
         return scene.getBackgroundColor();
     }
-
     const Material& mat = *intersection.material;
 
     glm::vec3 color(0.0f);
@@ -301,7 +300,7 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
 
     // === 2. optionally compute reflection for low roughness metals ===
     glm::vec3 reflectionColor(0.0f);
-    // if (mat.metallic > 0.0f && mat.roughness < 0.2f) {
+    if (mat.metallic > 0.0f && mat.roughness < 0.2f) {
         glm::vec3 reflectDir = glm::reflect(ray.direction, intersection.normal);
         Ray reflectedRay(intersection.position + reflectDir * 1e-4f, reflectDir);
         reflectionColor = traceRay(reflectedRay, scene, depth + 1);
@@ -312,7 +311,7 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
         glm::vec3 fresnel = F0 + (1.0f - F0) * glm::pow(1.0f - NdotV, 5.0f);
 
         color += fresnel * reflectionColor; // Add specular reflection
-    // }
+    }
 
     // === 3. optionally compute refraction for transparent dielectrics ===
     if (mat.transparency > 0.0f) {
@@ -364,39 +363,6 @@ Ray Renderer::computeRefractedRay(const Ray& ray, const Intersection& isect) {
     return Ray(origin, refractedDir);
 }
 
-// glm::vec3 Renderer::computeLocalShading(const Intersection& isect, const Scene& scene) {
-//     glm::vec3 color(0.0f);
-//     glm::vec3 viewDir = glm::normalize(scene.camera.getPosition() - isect.position);
-//     const auto& mat = *isect.material;
-
-//     // 常量项：环境光
-//     const float ambientStrength = 0.1f;
-//     glm::vec3 ambient = ambientStrength * mat.diffuseColor;
-//     color += ambient;
-
-//     // 对每个点光源进行光照计算
-//     for (const auto& light : scene.lights) {
-//         float lightIntensity = light->getIntensity(isect.position);
-//         glm::vec3 lightColor = light->getColor() * lightIntensity;
-
-//         glm::vec3 lightDir = light->getDirection(isect.position);
-//         float diff = glm::max(glm::dot(isect.normal, lightDir), 0.0f);
-//         // float shadowFactor = computeSoftShadow(isect.position, scene, lightPos, 16);
-//         // glm::vec3 diffuse = diff * mat.diffuseColor * lightColor * shadowFactor;
-//         glm::vec3 diffuse = diff * mat.diffuseColor * lightColor;
-//         color += diffuse;
-
-//         if (glm::dot(isect.normal, lightDir) > 0.0f) { // 仅在法线与光源方向一致时计算高光
-//             glm::vec3 halfwayDir = glm::normalize(lightDir + viewDir);
-//             float spec = glm::pow(glm::max(glm::dot(isect.normal, halfwayDir), 0.0f), mat.shininess);
-//             glm::vec3 specular = spec * mat.specularColor * lightColor;
-//             color += specular; // 累加高光
-//         }
-//     }
-
-//     return glm::clamp(color, 0.0f, 1.0f); // 保证颜色在 [0,1]
-// }
-
 float Renderer::fresnelSchlick(float cosTheta, float ior) {
     float r0 = (1.0f - ior) / (1.0f + ior);
     r0 = r0 * r0;
@@ -434,16 +400,4 @@ Renderer::Renderer(int width, int height){
     framebuffer = Buffer<uint32_t>(width, height);
     zbuffer = Buffer<float>(width, height);
     clearBuffers();
-    textureWidth = 64;
-    textureHeight = 64;
-    textureData = ResourceLoader::loadTextureFromFile("Resources\\checker.jpg", textureWidth, textureHeight);
-    // for (int i = 0; i < 10; ++i) {
-    //     uint32_t pixel = textureData[i];
-    //     SDL_Log("Pixel %d: R=%d, G=%d, B=%d, A=%d",
-    //             i,
-    //             (pixel & 0xFF),         // Red
-    //             (pixel >> 8) & 0xFF,   // Green
-    //             (pixel >> 16) & 0xFF,  // Blue
-    //             (pixel >> 24) & 0xFF); // Alpha
-    // }
 }

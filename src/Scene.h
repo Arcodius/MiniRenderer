@@ -1,8 +1,9 @@
 #pragma once
+#include <iostream>
 #include <memory>
 #include <vector>
-#include <SDL3/SDL.h>
-#include <iostream>
+
+#include "BVH.h"
 #include "Camera.h"
 #include "Light.h"
 #include "Mesh.h"
@@ -12,14 +13,29 @@
 
 class Scene {
 private:
-	glm::vec3 backgroundColor = glm::vec3(0.1f);
+	glm::vec3 backgroundColor = glm::vec3(0.05f);
+	int MAX_PRIMS_IN_LEAF = 8;
+	int rootNodeIdx = -1; // BVH 根节点的索引
+
+    // 递归构建 BVH 的辅助函数
+    int buildBVHRecursive(std::vector<int>& primitiveIndices, int start, int end, int currentDepth);
+    // 获取图元 (三角形) 的 AABB
+    AABB getPrimitiveAABB(int primitiveIdx) const;
+	
 public:
 	std::vector<std::shared_ptr< Object >> objects; // primitive objects use shared_ptr for polymorphism
 	std::vector<std::shared_ptr< Light >> lights;
 
+	std::vector<BVHNode> bvhNodes;
+    std::vector<Triangle> flattenedTriangles;
+
 	Camera camera;
 
-	Scene() : camera() {}
+	Scene();
+
+	void setup();
+
+	void buildBVH();
 
 	void addObject(const std::shared_ptr<Object>& object) {
 		objects.push_back(object);

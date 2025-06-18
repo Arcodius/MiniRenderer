@@ -4,114 +4,6 @@
 #include "Renderer.h"
 #include "Scene.h"
 
-void setupScene(Scene& scene) {
-    // 地面
-    Material groundMaterial;
-    groundMaterial.baseColor= glm::vec3(0.5f, 0.5f, 0.5f); // 灰色
-    groundMaterial.roughness = 0.8f; // 粗糙
-    groundMaterial.metallic = 0.0f; // 非金属
-
-    std::shared_ptr<Plane> ground = std::make_shared<Plane>(
-        true,
-        glm::vec3(0.0f, 0.0f, 0.0f), // 地面位置
-        glm::vec3(0.0f, 1.0f, 0.0f), // 法线方向
-        groundMaterial
-    );
-    ground->setScale(glm::vec3(1.0f));
-    scene.addObject(ground);
-
-    // 左墙（红色）
-    Material leftWallMaterial;
-    leftWallMaterial.baseColor= glm::vec3(1.0f, 0.0f, 0.0f); // 红色
-    leftWallMaterial.roughness = 0.8f; // 粗糙
-    leftWallMaterial.metallic = 0.0f; // 非金属
-
-    std::shared_ptr<Plane> leftWall = std::make_shared<Plane>(
-        true,
-        glm::vec3(-1.0f, 1.0f, 0.0f), // 左墙位置
-        glm::vec3(1.0f, 0.0f, 0.0f), // 法线方向
-        leftWallMaterial
-    );
-    leftWall->setScale(glm::vec3(1.f));
-    scene.addObject(leftWall);
-
-    // 右墙（绿色）
-    Material rightWallMaterial;
-    rightWallMaterial.baseColor = glm::vec3(0.0f, 1.0f, 0.0f); // 绿色
-    rightWallMaterial.roughness = 0.8f; // 粗糙
-    rightWallMaterial.metallic = 0.0f; // 非金属
-
-    std::shared_ptr<Plane> rightWall = std::make_shared<Plane>(
-        true,
-        glm::vec3(1.0f, 1.0f, 0.0f), // 右墙位置
-        glm::vec3(-1.0f, 0.0f, 0.0f), // 法线方向
-        rightWallMaterial
-    );
-    rightWall->setScale(glm::vec3(1.0f));
-    scene.addObject(rightWall);
-
-    // 顶面（白色）
-    Material ceilingMaterial;
-    ceilingMaterial.baseColor = glm::vec3(1.0f, 1.0f, 1.0f); // 白色
-    ceilingMaterial.roughness = 0.8f; // 粗糙
-    ceilingMaterial.metallic = 0.0f; // 非金属
-
-    std::shared_ptr<Plane> ceiling = std::make_shared<Plane>(
-        true,
-        glm::vec3(0.0f, 2.0f, 0.0f), // 顶面位置
-        glm::vec3(0.0f, -1.0f, 0.0f), // 法线方向
-        ceilingMaterial
-    );
-    ceiling->setScale(glm::vec3(1.0f));
-    scene.addObject(ceiling);
-
-    // 后面（白色）
-    std::shared_ptr<Plane> backWall = std::make_shared<Plane>(
-        true,
-        glm::vec3(0.0f, 1.0f, -1.0f), // 顶面位置
-        glm::vec3(0.0f, 0.0f, 1.0f), // 法线方向
-        ceilingMaterial
-    );
-    scene.addObject(backWall);
-
-    // 球体
-    Material sphereMaterial;
-    sphereMaterial.baseColor = glm::vec3(0.0f, 0.0f, 1.0f); // 蓝色
-    sphereMaterial.roughness = 0.2f; // 光滑
-    sphereMaterial.metallic = 0.0f; // 非金属
-
-    // std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(
-    //     glm::vec3(0.0f, 0.5f, 0.0f), // 球体位置
-    //     0.5f, // 半径
-    //     sphereMaterial
-    // );
-    // scene.addObject(sphere);
-    std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
-        Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
-        glm::vec3(0.0f, 0.5f, 0.0f), // 位置
-        glm::vec3(0.0f), // 旋转
-        glm::vec3(1.0f) // 缩放
-    );
-    monkey->setMaterial(std::make_shared<Material>(sphereMaterial)); // 设置材质
-    
-    scene.addObject(monkey);
-
-    // 灯光（顶光）
-    std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(
-        glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
-        25.0f, // 强度
-        glm::vec3(0.0f, 1.9f, 0.0f), // 灯光位置
-        10.0f // 距离衰减
-    );
-    scene.addLight(topLight);
-
-    // 设置相机
-    scene.camera.setPerspective(true);
-    scene.camera.setFovY(90.0f);
-    scene.camera.setPosition(glm::vec3(0.0f, 1.f, 3.0f));
-    scene.camera.setTarget(glm::vec3(0.0f, 1.0f, 0.0f));
-}
-
 int main(int argc, char* argv[])
 {
     SDL_SetLogPriorities(SDL_LOG_PRIORITY_VERBOSE);  // output all logs
@@ -147,7 +39,6 @@ int main(int argc, char* argv[])
         return -1;
     }
     Scene scene = Scene();
-    setupScene(scene);
     Renderer renderer(width, height);
 
     // Event loop

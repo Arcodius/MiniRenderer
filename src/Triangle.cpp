@@ -1,10 +1,18 @@
 #include "Triangle.h"
 
-bool Triangle::intersect(const Ray& ray, Intersection& isect, const std::shared_ptr<Material>& material) const {
+bool Triangle::intersect(const Ray& ray, Intersection& isect) const {
     // Get the three vertices of the triangle
     const glm::vec3& v0 = vertices[0].worldPos;
     const glm::vec3& v1 = vertices[1].worldPos;
     const glm::vec3& v2 = vertices[2].worldPos;
+    if (glm::all(glm::isinf(v0)))
+    {
+        printf("Vertex v0 is NaN: %f, %f, %f\n", v0.x, v0.y, v0.z);
+    }
+    if (glm::all(glm::isinf(ray.direction))){
+        printf("Ray direction is NaN: %f, %f, %f\n", ray.direction.x, ray.direction.y, ray.direction.z);
+    }
+
 
     // Compute edge vectors
     glm::vec3 edge1 = v1 - v0;
@@ -38,7 +46,7 @@ bool Triangle::intersect(const Ray& ray, Intersection& isect, const std::shared_
 
     // Compute the ray parameter t
     float t = f * glm::dot(edge2, q);
-
+    
     // Check if t is positive (correct direction)
     if (t > EPSILON && t < isect.t) {
         isect.t = t;
@@ -48,6 +56,13 @@ bool Triangle::intersect(const Ray& ray, Intersection& isect, const std::shared_
         isect.uv = (1 - u - v) * vertices[0].uv + u * vertices[1].uv + v * vertices[2].uv;
         isect.normal = glm::normalize((1 - u - v) * vertices[0].worldNormal + u * vertices[1].worldNormal + v * vertices[2].worldNormal);
         isect.hit = true;
+        if (glm::any(glm::isnan(isect.position)) || glm::any(glm::isnan(isect.normal)) || glm::any(glm::isnan(isect.uv))) {
+            printf("NaN detected in intersection: position (%f, %f, %f), normal (%f, %f, %f), uv (%f, %f)\n",
+                   isect.position.x, isect.position.y, isect.position.z,
+                   isect.normal.x, isect.normal.y, isect.normal.z,
+                   isect.uv.x, isect.uv.y);
+        }
+
         return true;
     }
 
