@@ -80,12 +80,21 @@ void setupScene(Scene& scene) {
     sphereMaterial.roughness = 0.2f; // 光滑
     sphereMaterial.metallic = 0.0f; // 非金属
 
-    std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(
-        glm::vec3(0.0f, 0.5f, 0.0f), // 球体位置
-        0.5f, // 半径
-        sphereMaterial
+    // std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(
+    //     glm::vec3(0.0f, 0.5f, 0.0f), // 球体位置
+    //     0.5f, // 半径
+    //     sphereMaterial
+    // );
+    // scene.addObject(sphere);
+    std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
+        Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
+        glm::vec3(0.0f, 0.5f, 0.0f), // 位置
+        glm::vec3(0.0f), // 旋转
+        glm::vec3(1.0f) // 缩放
     );
-    scene.addObject(sphere);
+    monkey->setMaterial(std::make_shared<Material>(sphereMaterial)); // 设置材质
+    
+    scene.addObject(monkey);
 
     // 灯光（顶光）
     std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(

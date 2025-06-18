@@ -13,6 +13,9 @@ public:
 	std::vector<unsigned int> indices;
     std::vector<Triangle> triangles;
 
+    Mesh();
+    Mesh(const std::string& path);
+    
     std::string getName() const { return name; }
     void setName(const std::string& newName) { name = newName; }
 	void clear();

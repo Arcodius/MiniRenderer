@@ -1,8 +1,7 @@
 #include "Mesh.h"
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/string_cast.hpp>
-#include <iostream>
+#include "MyMath.h"
+#include "ResourceLoader.h"
 
 void Mesh::clear() {
     vertices.clear();
@@ -17,4 +16,10 @@ bool Mesh::intersect(const Ray& ray, Intersection& isect, const std::shared_ptr<
         }
     }
     return hit;
+}
+
+Mesh::Mesh() : name("default") {}
+
+Mesh::Mesh(const std::string& path) : name(path) {
+    ResourceLoader::loadMeshFromFile(path, *this);
 }

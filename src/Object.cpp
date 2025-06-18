@@ -84,6 +84,22 @@ void Object::setAsPrimitive(Object::PrimitiveType PrimitiveType) {
 	}
 }
 
+void GenericObject::updateMesh() {
+    update();
+    glm::mat4 modelMatrix = getMatrix();
+    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
+    for (size_t i = 0; i < mesh.indices.size(); i += 3) {
+        TransformedVertex transformedVertics[3];
+        for (int j = 0; j < 3; ++j) {
+            glm::vec3 worldPos = modelMatrix * glm::vec4(mesh.vertices[mesh.indices[i + j]].localPos, 1.0f);
+            glm::vec3 worldNormal = glm::normalize(normalMatrix * mesh.vertices[mesh.indices[i + j]].normal);
+            transformedVertics[j] = TransformedVertex(worldPos, worldNormal, mesh.vertices[mesh.indices[i + j]].uv);
+        }
+        mesh.triangles.emplace_back(Triangle(transformedVertics[0], transformedVertics[1], transformedVertics[2]));
+    }
+    printf("GenericObject updated mesh with %zu triangles.\n", mesh.triangles.size());
+}
+
 bool GenericObject::intersect(const Ray& ray, Intersection& isect) const {
     return mesh.intersect(ray, isect, material);
 }

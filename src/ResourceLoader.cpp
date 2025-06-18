@@ -91,9 +91,6 @@ bool ResourceLoader::loadMeshFromFile(const std::string& filename, Mesh& outMesh
                 outMesh.indices.push_back(faceIndices[0]);
                 outMesh.indices.push_back(faceIndices[i]);
                 outMesh.indices.push_back(faceIndices[i + 1]);
-
-                Triangle triangle(outMesh.vertices[faceIndices[0]], outMesh.vertices[faceIndices[i]], outMesh.vertices[faceIndices[i+1]]);
-                outMesh.triangles.push_back(triangle);
             }
         }
     }

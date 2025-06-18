@@ -74,8 +74,9 @@ public:
     GenericObject(const Mesh& mesh, const glm::vec3& position, const glm::vec3& rotation, const glm::vec3& scale)
         : Object(mesh, position, rotation, scale) {
         isPrimitive = false; // 标记为非原始物体
+        updateMesh(); // update matrix and apply to vertices
     }
-
+    void updateMesh();
     // iterate through all triangles to look for intersection
     virtual bool intersect(const Ray& ray, Intersection& isect) const override;
 };
