@@ -1,24 +1,24 @@
 #include "Material.h"
 
 #include "Color.h"
-#include "ResourceLoader.h"
+#include "ResourceManager.h"
 
 void Material::loadBaseColorMap(const std::string& path) {
-    colorMap = ResourceLoader::loadTextureFromFile(path, textureWidth, textureHeight);
+    colorMap = ResourceManager::loadTextureFromFile(path, textureWidth, textureHeight);
     if (colorMap.empty()) {
         throw std::runtime_error("Failed to load diffuse texture: " + path);
     }
 }
 
 void Material::loadRoughnessMap(const std::string& path) {
-    roughnessMap = ResourceLoader::loadTextureFromFile(path, textureWidth, textureHeight);
+    roughnessMap = ResourceManager::loadTextureFromFile(path, textureWidth, textureHeight);
     if (roughnessMap.empty()) {
         throw std::runtime_error("Failed to load specular texture: " + path);
     }
 }
 
 void Material::loadNormalMap(const std::string& path) {
-    normalMap = ResourceLoader::loadTextureFromFile(path, textureWidth, textureHeight);
+    normalMap = ResourceManager::loadTextureFromFile(path, textureWidth, textureHeight);
     if (normalMap.empty()) {
         throw std::runtime_error("Failed to load normal map texture: " + path);
     }

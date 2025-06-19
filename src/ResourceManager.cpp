@@ -1,4 +1,4 @@
-#include "ResourceLoader.h"
+#include "ResourceManager.h"
 
 #include <SDL3/SDL_log.h>
 
@@ -18,7 +18,7 @@ std::filesystem::path get_executable_path() {
     return std::filesystem::path(buffer).parent_path();
 }
 
-bool ResourceLoader::loadMeshFromFile(const std::string& filename, Mesh& outMesh) {
+bool ResourceManager::loadMeshFromFile(const std::string& filename, Mesh& outMesh) {
     std::filesystem::path exe_dir = get_executable_path();
     std::filesystem::path abs_path = exe_dir / filename;
     std::ifstream file(abs_path);
@@ -99,7 +99,7 @@ bool ResourceLoader::loadMeshFromFile(const std::string& filename, Mesh& outMesh
     return true;
 }
 
-std::vector<uint32_t> ResourceLoader::loadTextureFromFile(const std::string& path, int& texWidth, int& texHeight) {
+std::vector<uint32_t> ResourceManager::loadTextureFromFile(const std::string& path, int& texWidth, int& texHeight) {
     int channels;
     unsigned char* data = stbi_load(path.c_str(), &texWidth, &texHeight, &channels, 4); // Force 4 channels (RGBA)
     if (!data) {
@@ -110,4 +110,51 @@ std::vector<uint32_t> ResourceLoader::loadTextureFromFile(const std::string& pat
     memcpy(textureData.data(), data, texWidth * texHeight * 4); // Copy texture data
     stbi_image_free(data);
     return textureData;
+}
+
+// Function to save the framebuffer as a BMP image
+void ResourceManager::saveFramebufferToBMP(const std::string& filename, const std::vector<uint32_t>& framebuffer, int width, int height) {
+    std::ofstream file(filename, std::ios::binary);
+
+    if (!file) {
+        SDL_Log("Failed to open file for writing: %s", filename.c_str());
+        return;
+    }
+
+    // BMP Header
+    uint8_t header[54] = {
+        0x42, 0x4D,           // Signature
+        0, 0, 0, 0,           // File size (will be filled later)
+        0, 0,                 // Reserved
+        0, 0,                 // Reserved
+        54, 0, 0, 0,          // Offset to pixel data
+        40, 0, 0, 0,          // DIB header size
+        0, 0, 0, 0,           // Width (will be filled later)
+        0, 0, 0, 0,           // Height (will be filled later)
+        1, 0,                 // Planes
+        32, 0,                // Bits per pixel
+        0, 0, 0, 0,           // Compression
+        0, 0, 0, 0,           // Image size (can be 0 for uncompressed)
+        0, 0, 0, 0,           // X pixels per meter
+        0, 0, 0, 0,           // Y pixels per meter
+        0, 0, 0, 0,           // Colors in color table
+        0, 0, 0, 0            // Important color count
+    };
+
+    // Fill width and height
+    *reinterpret_cast<int32_t*>(&header[18]) = width;
+    *reinterpret_cast<int32_t*>(&header[22]) = -height; // Negative height for top-down BMP
+
+    // Fill file size
+    int fileSize = 54 + width * height * 4;
+    *reinterpret_cast<int32_t*>(&header[2]) = fileSize;
+
+    // Write header
+    file.write(reinterpret_cast<char*>(header), sizeof(header));
+
+    // Write pixel data
+    file.write(reinterpret_cast<const char*>(framebuffer.data()), width * height * 4);
+
+    file.close();
+    SDL_Log("Framebuffer saved to %s", filename.c_str());
 }

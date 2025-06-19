@@ -4,7 +4,7 @@
 
 #include "MyMath.h"
 #include "Ray.h"
-#include "ResourceLoader.h"
+#include "ResourceManager.h"
 #include "Intersection.h"
 
 void Object::update() {
@@ -49,7 +49,7 @@ void Object::setScale(const glm::vec3& newScale) {
 
 void Object::setMesh(const std::string& meshPath) {
 	Mesh new_mesh;
-	bool success = ResourceLoader::loadMeshFromFile(meshPath, new_mesh);
+	bool success = ResourceManager::loadMeshFromFile(meshPath, new_mesh);
 	if (!success) {
         SDL_Log("Failed to load mesh from file: %s", meshPath.c_str());
 		return;

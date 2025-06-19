@@ -1,6 +1,12 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include "imgui.h"
+#include "backends/imgui_impl_sdl3.h"
+#include "backends/imgui_impl_sdlrenderer3.h"
+
+
 #include <string>
+
 #include "Renderer.h"
 #include "Scene.h"
 
@@ -38,8 +44,22 @@ int main(int argc, char* argv[])
         SDL_Log("Could not create texture: %s", SDL_GetError());
         return -1;
     }
+    // Scene initialization
     Scene scene = Scene();
     Renderer renderer(width, height);
+
+    // 初始化 ImGui 上下文
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    // 设置样式
+    ImGui::StyleColorsDark(); // 或 ImGui::StyleColorsClassic()
+
+    // 初始化 ImGui 的 SDL 和 SDL_Renderer 后端
+    ImGui_ImplSDL3_InitForSDLRenderer(window, sdlRenderer);
+    ImGui_ImplSDLRenderer3_Init(sdlRenderer);
+
 
     // Event loop
     SDL_Event event{};
@@ -124,19 +144,19 @@ int main(int argc, char* argv[])
 
         
 
-        // rendering part
+        // 1. 渲染到 framebuffer
         if (useRayTracing) {
             renderer.renderRayTracing(scene);
         } else {
             renderer.render(scene);
         }
-        // update framebuffer to SDL_Texture
+
+        // 2. 上传 framebuffer 到 SDL_Texture
         SDL_UpdateTexture(texture, nullptr, renderer.framebuffer.data(), width * sizeof(uint32_t));
 
+        // 3. 计算目标矩形
         int window_width, window_height;
         SDL_GetWindowSize(window, &window_width, &window_height);
-
-        // keep original aspect ratio and keep the image centered
         float aspect_ratio = static_cast<float>(width) / height;
         int draw_width = window_width;
         int draw_height = static_cast<int>(window_width / aspect_ratio);
@@ -144,20 +164,38 @@ int main(int argc, char* argv[])
             draw_height = window_height;
             draw_width = static_cast<int>(window_height * aspect_ratio);
         }
-
         SDL_FRect dst_rect;
         dst_rect.w = static_cast<float>(draw_width);
         dst_rect.h = static_cast<float>(draw_height);
         dst_rect.x = (window_width - dst_rect.w) / 2.0f;
         dst_rect.y = (window_height - dst_rect.h) / 2.0f;
 
-        // Draw the texture to the screen
+        // 4. 清除屏幕
         SDL_RenderClear(sdlRenderer);
-        SDL_RenderTexture(sdlRenderer, texture, nullptr, &dst_rect); // adapt to window size
-        SDL_RenderPresent(sdlRenderer);
 
+        // 5. 先画 framebuffer 到窗口（非常重要）
+        SDL_RenderTexture(sdlRenderer, texture, nullptr, &dst_rect);
+
+        // 6. 再开始 ImGui 渲染帧
+        ImGui_ImplSDL3_NewFrame();
+        ImGui_ImplSDLRenderer3_NewFrame();
+        ImGui::NewFrame();
+
+        // 7. 画 UI
+        RenderUI();
+
+        // 8. 渲染 ImGui 到 SDL
+        ImGui::Render();
+        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData());
+
+        // 9. 提交本帧
+        SDL_RenderPresent(sdlRenderer);
         SDL_Delay(16); // confine to 60fps
     }
+
+    ImGui_ImplSDLRenderer3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
 
     SDL_DestroyRenderer(sdlRenderer);
     SDL_DestroyWindow(window);
@@ -165,3 +203,13 @@ int main(int argc, char* argv[])
     return 0;
 }
 
+void RenderUI(){
+    ImGui::Begin("Menu");
+    if (ImGui::Button("Render Frame")) {
+        renderer.renderRayTracing(scene); // 或 renderRayTracing(scene)
+    }
+    ImGui::Checkbox("Use Ray Tracing", &useRayTracing);
+    ImGui::Text("Camera Pos: (%.2f, %.2f, %.2f)", 
+        scene.camera.position.x, scene.camera.position.y, scene.camera.position.z);
+    ImGui::End();
+}

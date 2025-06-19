@@ -1,7 +1,7 @@
 #include "Mesh.h"
 
 #include "MyMath.h"
-#include "ResourceLoader.h"
+#include "ResourceManager.h"
 
 void Mesh::clear() {
     vertices.clear();
@@ -26,7 +26,7 @@ bool Mesh::intersect(const Ray& ray, Intersection& isect) const {
 Mesh::Mesh() : name("default") {}
 
 Mesh::Mesh(const std::string& path) : name(path) {
-    ResourceLoader::loadMeshFromFile(path, *this);
+    ResourceManager::loadMeshFromFile(path, *this);
 }
 
  void Mesh::output() const {

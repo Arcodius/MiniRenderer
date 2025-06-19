@@ -5,7 +5,7 @@
 #include "Intersection.h"
 #include "Material.h"
 #include "Ray.h"
-#include "ResourceLoader.h"
+#include "ResourceManager.h"
 #include "Scene.h"
 
 
