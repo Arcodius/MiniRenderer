@@ -31,6 +31,16 @@ struct AABB {
         float t_max = std::numeric_limits<float>::max();
 
         for (int i = 0; i < 3; ++i) {
+            if (std::abs(ray.direction[i]) < 1e-6) { // 光线与该轴平行
+                // 检查光线原点是否在该轴的平板内
+                if (ray.origin[i] < minBounds[i] || ray.origin[i] > maxBounds[i]) {
+                    // 如果在平板外且平行，则永远无法相交
+                    return false;
+                }
+                // 否则，光线在该平板内，此轴不限制交集，继续检查下一个轴
+                continue;
+            }
+
             float invDir = 1.0f / ray.direction[i];
             float t0 = (minBounds[i] - ray.origin[i]) * invDir;
             float t1 = (maxBounds[i] - ray.origin[i]) * invDir;
@@ -47,6 +57,41 @@ struct AABB {
 
         t_min_out = t_min;
         t_max_out = t_max;
+        return true;
+    }
+    // 重载 intersect 函数以使用 Ray 的 t_min 和 t_max
+    bool intersect(const Ray& ray) const {
+        float t_min_current = ray.t_min;
+        float t_max_current = ray.t_max;
+
+        for (int i = 0; i < 3; ++i) {
+
+            if (std::abs(ray.direction[i]) < 1e-6) { // 光线与该轴平行
+                // 检查光线原点是否在该轴的平板内
+                if (ray.origin[i] < minBounds[i] || ray.origin[i] > maxBounds[i]) {
+                    // 如果在平板外且平行，则永远无法相交
+                    return false;
+                }
+                // 否则，光线在该平板内，此轴不限制交集，继续检查下一个轴
+                continue;
+            }
+
+            float invDir = 1.0f / ray.direction[i];
+            float t0 = (minBounds[i] - ray.origin[i]) * invDir;
+            float t1 = (maxBounds[i] - ray.origin[i]) * invDir;
+
+            if (invDir < 0.0f) {
+                std::swap(t0, t1);
+            }
+
+            t_min_current = std::max(t_min_current, t0);
+            t_max_current = std::min(t_max_current, t1);
+
+            if (t_min_current > t_max_current) {
+                return false;
+            }
+        }
+        
         return true;
     }
 };

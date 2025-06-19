@@ -300,7 +300,7 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
 
     // === 2. optionally compute reflection for low roughness metals ===
     glm::vec3 reflectionColor(0.0f);
-    if (mat.metallic > 0.0f && mat.roughness < 0.2f) {
+    // if (mat.metallic > 0.0f && mat.roughness < 0.2f) {
         glm::vec3 reflectDir = glm::reflect(ray.direction, intersection.normal);
         Ray reflectedRay(intersection.position + reflectDir * 1e-4f, reflectDir);
         reflectionColor = traceRay(reflectedRay, scene, depth + 1);
@@ -311,7 +311,7 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
         glm::vec3 fresnel = F0 + (1.0f - F0) * glm::pow(1.0f - NdotV, 5.0f);
 
         color += fresnel * reflectionColor; // Add specular reflection
-    }
+    // }
 
     // === 3. optionally compute refraction for transparent dielectrics ===
     if (mat.transparency > 0.0f) {
@@ -370,12 +370,31 @@ float Renderer::fresnelSchlick(float cosTheta, float ior) {
 }
 
 
+// bool Renderer::isInShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos) {
+//     glm::vec3 shadowRayDir = glm::normalize(lightPos - point);
+//     Ray shadowRay(point + shadowRayDir * 0.001f, shadowRayDir); // 偏移避免自遮挡
+//     Intersection shadowIsect;
+//     shadowIsect.t = glm::length(lightPos - point);
+//     return scene.intersect(shadowRay, shadowIsect); // 如果有遮挡，返回 true
+// }
+
 bool Renderer::isInShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos) {
-    glm::vec3 shadowRayDir = glm::normalize(lightPos - point);
-    Ray shadowRay(point + shadowRayDir * 0.001f, shadowRayDir); // 偏移避免自遮挡
-    Intersection shadowIsect;
-    shadowIsect.t = glm::length(lightPos - point);
-    return scene.intersect(shadowRay, shadowIsect); // 如果有遮挡，返回 true
+    // 计算从着色点到光源的向量和距离
+    glm::vec3 toLightDir = lightPos - point;
+    float distanceToLight = glm::length(toLightDir);
+    toLightDir = glm::normalize(toLightDir);
+
+    // 创建一条阴影光线
+    // 起点需要沿光线方向偏移一小段距离，以避免浮点数误差导致的自遮挡
+    glm::vec3 shadowRayOrigin = point + toLightDir * EPSILON;
+    
+    // 关键：将光线的最远行程设置为到光源的距离
+    // 任何超过这个距离的交点都无关紧要（因为它们在光源后面）
+    Ray shadowRay(shadowRayOrigin, toLightDir);
+    shadowRay.t_max = distanceToLight - EPSILON; // 减去epsilon确保光源自身不会被遮挡
+
+    // 调用新的、高效的遮挡函数
+    return scene.hasIntersection(shadowRay);
 }
 
 float Renderer::computeSoftShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos, int numSamples) {

@@ -104,6 +104,53 @@ bool Scene::intersect(const Ray& ray, Intersection& closestIsect) const {
     return hit;
 }
 
+bool Scene::hasIntersection(const Ray& ray) const {
+    if (rootNodeIdx == -1) {
+        return false;
+    }
+
+    std::vector<int> nodeStack;
+    nodeStack.push_back(rootNodeIdx);
+
+    while (!nodeStack.empty()) {
+        int currentNodeIdx = nodeStack.back();
+        nodeStack.pop_back();
+
+        const BVHNode& node = bvhNodes[currentNodeIdx];
+
+        // 1. 检查光线是否与节点的包围盒相交
+        // 你的包围盒求交函数需要能处理 ray.t_min 和 ray.t_max
+        if (!node.bbox.intersect(ray)) { // 假设 AABB::intersect(ray) 会考虑 ray.t_max
+            continue;
+        }
+
+        // 2. 如果是叶子节点，检查其中的所有图元
+        if (node.isLeaf()) {
+            for (int i = 0; i < node.numPrimitives; ++i) {
+                int primIdx = this->primitiveIndices[node.firstPrimitiveIdx + i];
+                const Triangle& tri = this->flattenedTriangles[primIdx];
+                
+                // 只需要一个临时变量来接收求交结果，不需要完整的 Intersection
+                Intersection tempIsect; 
+                if (tri.intersect(ray, tempIsect)) {
+                    // 只要找到任何一个在 t_max 范围内的交点，就说明有遮挡
+                    // tri.intersect 应该保证返回的 tempIsect.t 在 [ray.t_min, ray.t_max] 之间
+                    return true; // 立即返回，这是效率的关键
+                }
+            }
+        } 
+        // 3. 如果是内部节点，将子节点加入栈中
+        else {
+            // 对于遮挡函数，子节点的遍历顺序不影响最终结果，可以不排序以简化代码
+            nodeStack.push_back(node.leftChildIdx);
+            nodeStack.push_back(node.rightChildIdx);
+        }
+    }
+
+    // 遍历完所有相关节点都没有找到交点
+    return false;
+}
+
 void Scene::buildBVH() {
     bvhNodes.clear();
     flattenedTriangles.clear(); // 清空旧数据

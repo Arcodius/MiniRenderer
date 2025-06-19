@@ -68,6 +68,6 @@ public:
 	}
 
 	bool intersect(const Ray& ray, Intersection& closestIsect) const;
-
+    bool hasIntersection(const Ray& ray) const;
 };
 
