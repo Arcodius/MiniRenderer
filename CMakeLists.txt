@@ -8,12 +8,22 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
     src/*.cpp
     src/*.h
 )
-# 引入GLM头文件路径
-# GLM的根目录在 third_party/glm
-# 但实际的头文件在 third_party/glm/glm 里
-# 所以我们把 third_party/glm 作为包含路径
+
 set(GLM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glm)
-include_directories(${GLM_DIR}) # 使用 include_directories 或 target_include_directories 都可以
+include_directories(${GLM_DIR})
+
+# Include ImGui source files
+set(IMGUI_DIR "${CMAKE_SOURCE_DIR}/third_party/imgui")
+set(IMGUI_BACKENDS_DIR "${IMGUI_DIR}/backends")
+
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_BACKENDS_DIR}/imgui_impl_sdl3.cpp
+    ${IMGUI_BACKENDS_DIR}/imgui_impl_sdlrenderer3.cpp
+)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL3" EXCLUDE_FROM_ALL)
 link_libraries(SDL3::SDL3)
@@ -21,8 +31,13 @@ link_libraries(SDL3::SDL3)
 add_executable(MiniRenderer ${SOURCES}
     # src/cuda_transform_kernel.cu
 )
+target_sources(MiniRenderer PRIVATE ${IMGUI_SOURCES})
 
-target_include_directories(MiniRenderer PRIVATE ${GLM_DIR})
+target_include_directories(MiniRenderer PRIVATE 
+    ${GLM_DIR} 
+    ${IMGUI_DIR} 
+    ${IMGUI_BACKENDS_DIR}
+)
 
 add_custom_command(TARGET MiniRenderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

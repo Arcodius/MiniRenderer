@@ -9,6 +9,8 @@
 #include <filesystem>
 #include <windows.h>
 
+
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -113,13 +115,16 @@ std::vector<uint32_t> ResourceManager::loadTextureFromFile(const std::string& pa
 }
 
 // Function to save the framebuffer as a BMP image
-void ResourceManager::saveFramebufferToBMP(const std::string& filename, const std::vector<uint32_t>& framebuffer, int width, int height) {
+void ResourceManager::saveFramebufferToBMP(const std::string& filename, const Buffer<uint32_t>& framebuffer) {
     std::ofstream file(filename, std::ios::binary);
 
     if (!file) {
         SDL_Log("Failed to open file for writing: %s", filename.c_str());
         return;
     }
+
+    int width = framebuffer.width;
+    int height = framebuffer.height;
 
     // BMP Header
     uint8_t header[54] = {
@@ -152,7 +157,7 @@ void ResourceManager::saveFramebufferToBMP(const std::string& filename, const st
     // Write header
     file.write(reinterpret_cast<char*>(header), sizeof(header));
 
-    // Write pixel data
+    // Write pixel data directly from framebuffer
     file.write(reinterpret_cast<const char*>(framebuffer.data()), width * height * 4);
 
     file.close();

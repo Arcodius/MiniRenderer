@@ -15,7 +15,11 @@ class Scene {
 private:
 	glm::vec3 backgroundColor = glm::vec3(0.05f);
 	int MAX_PRIMS_IN_LEAF = 8;
-	int rootNodeIdx = -1; // BVH 根节点的索引
+
+    std::vector<BVHNode> bvhNodes;
+    std::vector<Triangle> flattenedTriangles;
+    std::vector<int> primitiveIndices;
+    int rootNodeIdx = -1; // BVH 根节点的索引	
 
     // 递归构建 BVH 的辅助函数
     int buildBVHRecursive(std::vector<int>& primitiveIndices, int start, int end, int currentDepth);
@@ -25,9 +29,6 @@ private:
 public:
 	std::vector<std::shared_ptr< Object >> objects; // primitive objects use shared_ptr for polymorphism
 	std::vector<std::shared_ptr< Light >> lights;
-
-	std::vector<BVHNode> bvhNodes;
-    std::vector<Triangle> flattenedTriangles;
 
 	Camera camera;
 

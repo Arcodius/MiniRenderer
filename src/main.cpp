@@ -1,13 +1,13 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
-#include "imgui.h"
-#include "backends/imgui_impl_sdl3.h"
-#include "backends/imgui_impl_sdlrenderer3.h"
-
+#include <imgui.h>
+#include <backends/imgui_impl_sdl3.h>
+#include <backends/imgui_impl_sdlrenderer3.h>
 
 #include <string>
 
 #include "Renderer.h"
+#include "ResourceManager.h"
 #include "Scene.h"
 
 int main(int argc, char* argv[])
@@ -19,9 +19,10 @@ int main(int argc, char* argv[])
         SDL_Log("SDL_Init failed: $s", SDL_GetError());
     }
 
-    const int width = 160, height = 160;
+    const int width = 160, height = 90;
+    const int screenWidth = 1920, screenHeight = 1080;
     // Create a window
-    SDL_Window* window = SDL_CreateWindow("MiniRenderer", width, height, SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow("MiniRenderer", screenWidth / 2, screenHeight / 2, SDL_WINDOW_RESIZABLE);
     if (!window){
         SDL_Log("Could not create a window: $s", SDL_GetError());
         return -1;
@@ -139,7 +140,6 @@ int main(int argc, char* argv[])
             if (keyboardState[SDL_SCANCODE_D]) {
                 scene.camera.handleKeyPress(SDLK_D, deltaTime);
             }
-            // 添加其他你需要的按键处理
         }
 
         
@@ -182,11 +182,37 @@ int main(int argc, char* argv[])
         ImGui::NewFrame();
 
         // 7. 画 UI
-        RenderUI();
+        {
+            // 设置 UI 窗口位置和大小
+            ImGui::SetNextWindowPos(ImVec2(0, 0)); // 窗口顶端
+            ImGui::SetNextWindowSize(ImVec2(static_cast<float>(window_width), 20)); // 宽度为窗口宽度，高度为 100
+
+            ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+
+            // Render Frame 按钮居中
+            ImGui::SetCursorPosX((ImGui::GetWindowSize().x - ImGui::CalcTextSize("Render Frame").x) / 2.0f);
+            if (ImGui::Button("Render Frame")) {
+                if (!useRayTracing) { // not rendered
+                    printf("Begin ray tracing...\n");
+                    renderer.clearBuffers();
+                    renderer.renderRayTracing(scene);
+                    printf("Ray tracing finished.\n");
+                }
+                const Buffer<uint32_t>& buffer = renderer.getBuffer();
+                ResourceManager::saveFramebufferToBMP("ray_tracing_output.bmp", renderer.getBuffer());
+            }
+
+            // 相机位置显示在右上角
+            ImGui::SetCursorPos(ImVec2(ImGui::GetWindowSize().x - 200, 10)); // 偏移到右上角
+            ImGui::Text("Camera Pos: (%.2f, %.2f, %.2f)", 
+                scene.camera.getPosition().x, scene.camera.getPosition().y, scene.camera.getPosition().z);
+
+            ImGui::End();
+        }
 
         // 8. 渲染 ImGui 到 SDL
         ImGui::Render();
-        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData());
+        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), sdlRenderer);
 
         // 9. 提交本帧
         SDL_RenderPresent(sdlRenderer);
@@ -203,13 +229,3 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void RenderUI(){
-    ImGui::Begin("Menu");
-    if (ImGui::Button("Render Frame")) {
-        renderer.renderRayTracing(scene); // 或 renderRayTracing(scene)
-    }
-    ImGui::Checkbox("Use Ray Tracing", &useRayTracing);
-    ImGui::Text("Camera Pos: (%.2f, %.2f, %.2f)", 
-        scene.camera.position.x, scene.camera.position.y, scene.camera.position.z);
-    ImGui::End();
-}

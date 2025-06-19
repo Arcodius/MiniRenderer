@@ -50,6 +50,7 @@ private:
 
 public:
 	void clearBuffers();
+    const Buffer<uint32_t>& getBuffer() const { return framebuffer; }
 	void render(Scene scene);
 	void renderRayTracing(Scene scene);
 

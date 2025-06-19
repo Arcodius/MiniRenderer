@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "Buffer.h"
 #include "Mesh.h"
 
 class ResourceManager {
@@ -20,5 +21,5 @@ private:
 public:
 	static bool loadMeshFromFile(const std::string& filename, Mesh& outMesh);
     static std::vector<uint32_t> loadTextureFromFile(const std::string& path, int& texWidth, int& texHeight);
-    static void saveFramebufferToBMP(const std::string& filename, const std::vector<uint32_t>& framebuffer, int width, int height);
+    static void saveFramebufferToBMP(const std::string& filename, const Buffer<uint32_t>& framebuffer);
 };

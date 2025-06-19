@@ -224,12 +224,13 @@ void Camera::handleScroll(float scrollY, float deltaTime){
 
 Ray Camera::generateRay(int x, int y, int width, int height) const {
     // 将像素坐标转换到 [-1, 1] 的NDC空间
-    float ndcX = (x + 0.5f) / width  * 2.0f - 1.0f;
+    float ndcX = (x + 0.5f) / width * 2.0f - 1.0f;
     float ndcY = 1.0f - (y + 0.5f) / height * 2.0f; // y反过来
 
     // 计算屏幕空间坐标
     float tanFov = tanf(glm::radians(fovY) * 0.5f);
-    float px = ndcX * aspect* tanFov;
+    float aspectRatio = static_cast<float>(width) / height; // 根据传入的宽高计算长宽比
+    float px = ndcX * aspectRatio * tanFov;
     float py = ndcY * tanFov;
 
     // 构造 ray direction in world space
@@ -237,7 +238,6 @@ Ray Camera::generateRay(int x, int y, int width, int height) const {
 
     return Ray(position, dir);
 }
-
 
 
 Camera::Camera(){
