@@ -375,7 +375,6 @@ bool Renderer::isInShadow(const glm::vec3& point, const Scene& scene, const glm:
     Ray shadowRay(point + shadowRayDir * 0.001f, shadowRayDir); // 偏移避免自遮挡
     Intersection shadowIsect;
     shadowIsect.t = glm::length(lightPos - point);
-
     return scene.intersect(shadowRay, shadowIsect); // 如果有遮挡，返回 true
 }
 

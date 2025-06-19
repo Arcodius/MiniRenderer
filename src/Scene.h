@@ -14,7 +14,7 @@
 class Scene {
 private:
 	glm::vec3 backgroundColor = glm::vec3(0.05f);
-	int MAX_PRIMS_IN_LEAF = 8;
+	int MAX_PRIMS_IN_LEAF = 4;
 
     std::vector<BVHNode> bvhNodes;
     std::vector<Triangle> flattenedTriangles;
@@ -22,7 +22,7 @@ private:
     int rootNodeIdx = -1; // BVH 根节点的索引	
 
     // 递归构建 BVH 的辅助函数
-    int buildBVHRecursive(std::vector<int>& primitiveIndices, int start, int end, int currentDepth);
+    int buildBVHRecursive(int start, int end, int currentDepth);
     // 获取图元 (三角形) 的 AABB
     AABB getPrimitiveAABB(int primitiveIdx) const;
 	

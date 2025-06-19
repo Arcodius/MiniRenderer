@@ -24,15 +24,15 @@ bool Scene::intersect(const Ray& ray, Intersection& closestIsect) const {
     if (rootNodeIdx == -1 || bvhNodes.empty()) { // 如果没有构建 BVH，则回退到原始遍历（或报错）
         // 原始遍历逻辑 (不建议保留，BVH是必须的)
         bool hit = false;
-        for (const auto& obj : objects) {
-            Intersection temp;
-            if (obj->intersect(ray, temp)) {
-                if (temp.t < closestIsect.t) {
-                    closestIsect = temp;
-                    hit = true;
-                }
-            }
-        }
+        // for (const auto& obj : objects) {
+        //     Intersection temp;
+        //     if (obj->intersect(ray, temp)) {
+        //         if (temp.t < closestIsect.t) {
+        //             closestIsect = temp;
+        //             hit = true;
+        //         }
+        //     }
+        // }
         return hit;
         printf("BVH is not built yet. Please call buildBVH() before intersecting.\n");
         return false;
@@ -65,7 +65,11 @@ bool Scene::intersect(const Ray& ray, Intersection& closestIsect) const {
             
             // 遍历叶节点中的所有图元
             for (int i = 0; i < node.numPrimitives; ++i) {
-                const Triangle& tri = flattenedTriangles[node.firstPrimitiveIdx + i];
+                // const Triangle& tri = flattenedTriangles[node.firstPrimitiveIdx + i];
+                // 1. 从 primitiveIndices 获取真正的三角形索引
+                int primIdx = primitiveIndices[node.firstPrimitiveIdx + i]; 
+                // 2. 使用真正的索引访问 flattenedTriangles
+                const Triangle& tri = flattenedTriangles[primIdx];
                 Intersection tempIsect = closestIsect; // 传入当前最近交点的信息
                 // 注意：这里 Triangle::intersect 应该返回找到的交点，如果它比 tempIsect.t 更近
                 if (tri.intersect(ray, tempIsect)) { // Triangle 现在需要存储自己的 Material
@@ -122,12 +126,12 @@ void Scene::buildBVH() {
     }
 
     // 创建一个包含所有图元索引的列表
-    std::vector<int> primitiveIndices(flattenedTriangles.size());
+    primitiveIndices.resize(flattenedTriangles.size());
     std::iota(primitiveIndices.begin(), primitiveIndices.end(), 0); // 填充 0, 1, 2, ... num_triangles-1
     // printf("flattenedTriangles has %zu triangles.\n", flattenedTriangles.size());
     // 开始递归构建
     bvhNodes.reserve(flattenedTriangles.size() * 2);
-    rootNodeIdx = buildBVHRecursive(primitiveIndices, 0, primitiveIndices.size(), 0);
+    rootNodeIdx = buildBVHRecursive(0, primitiveIndices.size(), 0);
     printf("BVH built with %zu triangles.\n", flattenedTriangles.size());
 }
 
@@ -140,7 +144,7 @@ AABB Scene::getPrimitiveAABB(int primitiveIdx) const {
     return bbox;
 }
 
-int Scene::buildBVHRecursive(std::vector<int>& primitiveIndices, int start, int end, int currentDepth) {
+int Scene::buildBVHRecursive(int start, int end, int currentDepth) {
     int numPrims = end - start;
     int currentNodeIdx = bvhNodes.size();
     bvhNodes.emplace_back(); // 添加一个新节点
@@ -172,7 +176,8 @@ int Scene::buildBVHRecursive(std::vector<int>& primitiveIndices, int start, int 
         // 按中点分割图元，或者使用 SAH (更优)
         // 简单中点分割:
         float midPoint = currentBbox.minBounds[axis] + extent[axis] / 2.0f;
-
+        // std::partition 返回一个迭代器，指向第一个不满足谓词条件的元素
+        // std::distance 计算这个迭代器相对于整个向量开头的偏移量
         auto partition_point = std::partition(primitiveIndices.begin() + start, primitiveIndices.begin() + end,
             [&](int primIdx) {
                 return getPrimitiveAABB(primIdx).minBounds[axis] < midPoint;
@@ -187,8 +192,8 @@ int Scene::buildBVHRecursive(std::vector<int>& primitiveIndices, int start, int 
         }
 
         // 递归构建左右子树
-        bvhNodes[currentNodeIdx].leftChildIdx = buildBVHRecursive(primitiveIndices, start, mid, currentDepth + 1);
-        bvhNodes[currentNodeIdx].rightChildIdx = buildBVHRecursive(primitiveIndices, mid, end, currentDepth + 1);
+        bvhNodes[currentNodeIdx].leftChildIdx = buildBVHRecursive(start, mid, currentDepth + 1);
+        bvhNodes[currentNodeIdx].rightChildIdx = buildBVHRecursive(mid, end, currentDepth + 1);
     
         
     }
@@ -202,6 +207,30 @@ void Scene::setup(){
     groundMaterial.roughness = 0.8f; // 粗糙
     groundMaterial.metallic = 0.0f; // 非金属
 
+    // 顶面（白色）
+    Material ceilingMaterial;
+    ceilingMaterial.baseColor = glm::vec3(1.0f, 1.0f, 1.0f); // 白色
+    ceilingMaterial.roughness = 0.8f; // 粗糙
+    ceilingMaterial.metallic = 0.0f; // 非金属
+
+    // // 左墙（红色）
+    Material leftWallMaterial;
+    leftWallMaterial.baseColor= glm::vec3(1.0f, 0.0f, 0.0f); // 红色
+    leftWallMaterial.roughness = 0.8f; // 粗糙
+    leftWallMaterial.metallic = 0.0f; // 非金属
+
+    // 右墙（绿色）
+    Material rightWallMaterial;
+    rightWallMaterial.baseColor = glm::vec3(0.0f, 1.0f, 0.0f); // 绿色
+    rightWallMaterial.roughness = 0.8f; // 粗糙
+    rightWallMaterial.metallic = 0.0f; // 非金属
+
+    // 球体
+    Material sphereMaterial;
+    sphereMaterial.baseColor = glm::vec3(0.0f, 0.0f, 1.0f); // 蓝色
+    sphereMaterial.roughness = 0.2f; // 光滑
+    sphereMaterial.metallic = 0.0f; // 非金属
+
     std::shared_ptr<Plane> ground = std::make_shared<Plane>(
         true,
         glm::vec3(0.0f, 0.0f, 0.0f), // 地面位置
@@ -210,12 +239,6 @@ void Scene::setup(){
     );
     ground->setScale(glm::vec3(1.0f));
     addObject(ground);
-
-    // 左墙（红色）
-    Material leftWallMaterial;
-    leftWallMaterial.baseColor= glm::vec3(1.0f, 0.0f, 0.0f); // 红色
-    leftWallMaterial.roughness = 0.8f; // 粗糙
-    leftWallMaterial.metallic = 0.0f; // 非金属
 
     std::shared_ptr<Plane> leftWall = std::make_shared<Plane>(
         true,
@@ -226,12 +249,6 @@ void Scene::setup(){
     leftWall->setScale(glm::vec3(1.f));
     addObject(leftWall);
 
-    // 右墙（绿色）
-    Material rightWallMaterial;
-    rightWallMaterial.baseColor = glm::vec3(0.0f, 1.0f, 0.0f); // 绿色
-    rightWallMaterial.roughness = 0.8f; // 粗糙
-    rightWallMaterial.metallic = 0.0f; // 非金属
-
     std::shared_ptr<Plane> rightWall = std::make_shared<Plane>(
         true,
         glm::vec3(1.0f, 1.0f, 0.0f), // 右墙位置
@@ -241,19 +258,12 @@ void Scene::setup(){
     rightWall->setScale(glm::vec3(1.0f));
     addObject(rightWall);
 
-    // 顶面（白色）
-    Material ceilingMaterial;
-    ceilingMaterial.baseColor = glm::vec3(1.0f, 1.0f, 1.0f); // 白色
-    ceilingMaterial.roughness = 0.8f; // 粗糙
-    ceilingMaterial.metallic = 0.0f; // 非金属
-
     std::shared_ptr<Plane> ceiling = std::make_shared<Plane>(
         true,
         glm::vec3(0.0f, 2.0f, 0.0f), // 顶面位置
         glm::vec3(0.0f, -1.0f, 0.0f), // 法线方向
         ceilingMaterial
     );
-    ceiling->setScale(glm::vec3(1.0f));
     addObject(ceiling);
 
     // 后面（白色）
@@ -265,33 +275,27 @@ void Scene::setup(){
     );
     addObject(backWall);
 
-    // 球体
-    Material sphereMaterial;
-    sphereMaterial.baseColor = glm::vec3(0.0f, 0.0f, 1.0f); // 蓝色
-    sphereMaterial.roughness = 0.2f; // 光滑
-    sphereMaterial.metallic = 0.0f; // 非金属
-
     std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(
-        glm::vec3(0.0f, 0.5f, 0.0f), // 球体位置
-        0.5f, // 半径
+        glm::vec3(0.5f, 0.4f, 0.5f), // 球体位置
+        0.4f, // 半径
         sphereMaterial
     );
     addObject(sphere);
 
-    // std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
-    //     Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
-    //     glm::vec3(0.3f), // 位置
-    //     glm::vec3(0.0f), // 旋转
-    //     glm::vec3(0.3f), // 缩放
-    //     std::make_shared<Material>(sphereMaterial) // 使用之前定义的材质
-    // );
-    // addObject(monkey);
+    std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
+        Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
+        glm::vec3(-0.3f, 0.3f, -0.3f), // 位置
+        glm::vec3(0.0f), // 旋转
+        glm::vec3(0.3f), // 缩放
+        std::make_shared<Material>(sphereMaterial) // 使用之前定义的材质
+    );
+    addObject(monkey);
 
     // 灯光（顶光）
     std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(
         glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
         25.0f, // 强度
-        glm::vec3(0.0f, 1.9f, 0.0f), // 灯光位置
+        glm::vec3(0.0f, 1.8f, 0.0f), // 灯光位置
         10.0f // 距离衰减
     );
     addLight(topLight);
@@ -309,13 +313,35 @@ Scene::Scene (){
     setup();
 
     buildBVH();
+
+    // 调试输出
     // for (int i = 0; i < flattenedTriangles.size(); ++i) {
-    //     const auto& tri = flattenedTriangles[i];
+    //     const Triangle& tri = flattenedTriangles[i];
     //     printf("Triangle %d: (%f,%f,%f)-(%f,%f,%f)-(%f,%f,%f)\n",
     //         i,
     //         tri.vertices[0].worldPos.x, tri.vertices[0].worldPos.y, tri.vertices[0].worldPos.z,
     //         tri.vertices[1].worldPos.x, tri.vertices[1].worldPos.y, tri.vertices[1].worldPos.z,
     //         tri.vertices[2].worldPos.x, tri.vertices[2].worldPos.y, tri.vertices[2].worldPos.z
     //     );
+    //     printf("normal: (%f,%f,%f)\n",
+    //         tri.vertices[0].worldNormal.x, tri.vertices[0].worldNormal.y, tri.vertices[0].worldNormal.z
+    //     );
+    //     printf("uv: (%f,%f)-(%f,%f)-(%f,%f)\n",
+    //         tri.vertices[0].uv.x, tri.vertices[0].uv.y,
+    //         tri.vertices[1].uv.x, tri.vertices[1].uv.y,
+    //         tri.vertices[2].uv.x, tri.vertices[2].uv.y
+    //     );
+    // }
+    // for (int i = 0; i < bvhNodes.size(); ++i) {
+    //     const auto& node = bvhNodes[i];
+    //     printf("BVH Node %d: bbox=(%f,%f,%f)-(%f,%f,%f), numPrims=%d, firstPrimIdx=%d, leftChildIdx=%d, rightChildIdx=%d\n",
+    //         i,
+    //         node.bbox.minBounds.x, node.bbox.minBounds.y, node.bbox.minBounds.z,
+    //         node.bbox.maxBounds.x, node.bbox.maxBounds.y, node.bbox.maxBounds.z,
+    //         node.numPrimitives, node.firstPrimitiveIdx, node.leftChildIdx, node.rightChildIdx
+    //     );
+    // }
+    // for (int i=0; i< primitiveIndices.size(); ++i) {
+    //     printf("Primitive Index %d: %d\n", i, primitiveIndices[i]);
     // }
 }
