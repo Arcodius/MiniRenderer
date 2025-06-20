@@ -271,10 +271,12 @@ void Renderer::render(Scene scene) {
 
 void Renderer::renderRayTracing(Scene scene) {
     clearBuffers();
-
+    // save mode only!
+    if (firstFrameSaved){
+        exit(0);
+    }
     // Iterate over each pixel in the framebuffer
     for (int y = 0; y < screenHeight; ++y) {
-        // 为了看到渲染进度，可以在每行渲染完后打印日志
         std::fprintf(stderr, "\rRendering... %5.2f%%", 100.0 * y / (screenHeight - 1));
 
         for (int x = 0; x < screenWidth; ++x) {
@@ -300,8 +302,6 @@ void Renderer::renderRayTracing(Scene scene) {
             glm::vec3 finalColor = accumulatedColor / static_cast<float>(SAMPLES_PER_PIXEL);
             
             // --- Gamma 校正 ---
-            // 我们的计算是在线性空间中进行的，但显示器通常是 sRGB (gamma ~2.2)
-            // 在写入帧缓冲前进行 Gamma 校正可以获得更正确的亮度和对比度
             finalColor.r = glm::pow(finalColor.r, 1.0f / 2.2f);
             finalColor.g = glm::pow(finalColor.g, 1.0f / 2.2f);
             finalColor.b = glm::pow(finalColor.b, 1.0f / 2.2f);
@@ -311,6 +311,12 @@ void Renderer::renderRayTracing(Scene scene) {
         }
     }
     std::fprintf(stderr, "\nDone.\n");
+
+    if (!firstFrameSaved) {
+        // Save the first frame to a file
+        ResourceManager::saveFramebufferToBMP("ray_tracing_output.png", getBuffer());
+        firstFrameSaved = true;
+    }
 }
 
 glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
@@ -357,8 +363,8 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
                 // 仅当从正面照射时才计算光照
                 if (cos_theta > 0.0f) {
                     glm::vec3 lightEnergy = areaLight->getColor() * areaLight->intensity * attenuation * cos_theta;
-                    // lightContribution += mat.computeBRDF(intersection.normal, viewDir, lightDir, lightEnergy);
                     lightContribution += mat.computeBRDF(intersection.normal, intersection.uv, viewDir, lightDir, lightEnergy);
+                    // lightContribution += mat.computePhong(intersection.normal, intersection.uv, viewDir, lightDir, lightEnergy);
                 }
             }
             // 将所有采样结果平均，并加到直接光照颜色中
@@ -372,8 +378,8 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
             }
             glm::vec3 lightDir = light->getDirection(intersection.position);
             glm::vec3 lightColor = light->getColor() * light->getIntensity(intersection.position);
-            // directLightingColor += mat.computeBRDF(intersection.normal, viewDir, lightDir, lightColor);
-            directLightingColor += mat.computeBRDF(intersection.normal, intersection.uv, viewDir, lightDir, lightColor);
+            // directLightingColor += mat.computeBRDF(intersection.normal, intersection.uv, viewDir, lightDir, lightColor);
+            directLightingColor += mat.computePhong(intersection.normal, intersection.uv, viewDir, lightDir, lightColor);
         }
     }
 

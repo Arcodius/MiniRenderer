@@ -50,6 +50,40 @@ float Material::sampleRoughness(const glm::vec2& uv) const {
     return redChannel;
 }
 
+glm::vec3 Material::computePhong(
+    const glm::vec3& normal,
+    const glm::vec2& uv,
+    const glm::vec3& viewDir,
+    const glm::vec3& lightDir,
+    const glm::vec3& lightColor) const {
+
+    // 计算半程向量
+    glm::vec3 halfVector = glm::normalize(viewDir + lightDir);
+
+    // 计算光照相关的点积
+    float NdotL = glm::max(glm::dot(normal, lightDir), 0.0f); // 法线与光线方向的点积
+    float NdotV = glm::max(glm::dot(normal, viewDir), 0.0f); // 法线与视线方向的点积
+    float NdotH = glm::max(glm::dot(normal, halfVector), 0.0f); // 法线与半程向量的点积
+
+    // 漫反射项 (Lambertian)
+    glm::vec3 diffuse = sampleBaseColor(uv) * NdotL;
+
+    // 高光项 (Phong)
+    float shininess = glm::max(roughness * 128.0f, 1.0f); // 将粗糙度映射到 Phong 模型的 shininess
+    float specularStrength = metallic; // 使用 metallic 作为高光强度
+    float spec = glm::pow(NdotH, shininess); // Phong 高光公式
+    glm::vec3 specular = specularStrength * spec * lightColor;
+
+    // 组合漫反射和高光
+    glm::vec3 result = diffuse + specular;
+
+    // 乘以光源颜色和强度
+    result *= lightColor;
+
+    // 确保结果在 [0, 1] 范围内
+    return glm::clamp(result, 0.0f, 1.0f);
+}
+
 glm::vec3 Material::computeBRDF(
     const glm::vec3& normal,
     const glm::vec3& viewDir,
@@ -100,7 +134,7 @@ glm::vec3 Material::computeBRDF(
     const glm::vec3& lightColor) const {
 
     glm::vec3 halfVector = glm::normalize(viewDir + lightDir);
-
+    
     float NdotL = glm::max(glm::dot(normal, lightDir), 0.0f);
     float NdotV = glm::max(glm::dot(normal, viewDir), 0.0f);
     float NdotH = glm::max(glm::dot(normal, halfVector), 0.0f);

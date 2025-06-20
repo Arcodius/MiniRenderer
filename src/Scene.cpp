@@ -251,13 +251,13 @@ void Scene::setup(){
     Material groundMaterial;
     groundMaterial.baseColor= glm::vec3(0.6f); // 灰色
     groundMaterial.roughness = 0.8f; // 粗糙
-    groundMaterial.metallic = 0.0f; // 非金属
+    groundMaterial.metallic = 0.05f; // 非金属
 
     // 顶面（白色）
     Material ceilingMaterial;
     ceilingMaterial.baseColor = glm::vec3(0.6f); // 白色
     ceilingMaterial.roughness = 0.8f; // 粗糙
-    ceilingMaterial.metallic = 0.0f; // 非金属
+    ceilingMaterial.metallic = 0.05f; // 非金属
 
     // 背墙
     Material backWallMaterial;
@@ -268,13 +268,13 @@ void Scene::setup(){
     Material leftWallMaterial;
     leftWallMaterial.baseColor= glm::vec3(1.0f, 0.0f, 0.0f); // 红色
     leftWallMaterial.roughness = 0.8f; // 粗糙
-    leftWallMaterial.metallic = 0.0f; // 非金属
+    leftWallMaterial.metallic = 0.05f; // 非金属
 
     // 右墙（绿色）
     Material rightWallMaterial;
     rightWallMaterial.baseColor = glm::vec3(0.0f, 1.0f, 0.0f); // 绿色
     rightWallMaterial.roughness = 0.8f; // 粗糙
-    rightWallMaterial.metallic = 0.0f; // 非金属
+    rightWallMaterial.metallic = 0.05f; // 非金属
 
     // 球体
     Material sphereMaterial;
@@ -282,18 +282,25 @@ void Scene::setup(){
     sphereMaterial.roughness = 0.1f; // 光滑
     sphereMaterial.metallic = 0.2f; // 非金属
 
-    // 猴子
-    Material monkeyMaterial;
-    monkeyMaterial.baseColor = glm::vec3(0.8f, 0.5f, 0.2f); // 棕色
-    monkeyMaterial.roughness = 0.5f; // 中等粗糙
-    monkeyMaterial.metallic = 0.0f; // 非金属
-    monkeyMaterial.loadBaseColorMap("Resources\\liquid.jpg");
+    // // 猴子
+    // Material monkeyMaterial;
+    // monkeyMaterial.baseColor = glm::vec3(0.8f, 0.5f, 0.2f); // 棕色
+    // monkeyMaterial.roughness = 0.5f; // 中等粗糙
+    // monkeyMaterial.metallic = 0.05f; // 非金属
+    // monkeyMaterial.loadBaseColorMap("Resources\\liquid.jpg");
+
+    Material complexMaterial;
+    sphereMaterial.baseColor = glm::vec3(0.8f, 0.7f, 0.75f); // 蓝色
+    sphereMaterial.roughness = 0.1f; // 光滑
+    sphereMaterial.metallic = 0.2f; // 非金属
+    complexMaterial.loadRoughnessMap("Resources\\complex_roughness.jpg"); // 复杂粗糙度纹理
 
     // 镜子
     Material mirrorMaterial;
     mirrorMaterial.baseColor = glm::vec3(1.0f); // 镜子颜色
     mirrorMaterial.roughness = 0.0f; // 完全光滑
     mirrorMaterial.metallic = 1.0f; // 金属材质
+    mirrorMaterial.loadRoughnessMap("Resources\\complex_roughness.jpg"); // 镜子粗糙度纹理
 
     std::shared_ptr<Plane> ground = std::make_shared<Plane>(
         glm::vec3(0.0f, 0.0f, 0.0f), // 地面位置
@@ -340,28 +347,35 @@ void Scene::setup(){
     mirror->setScale(glm::vec3(0.6f)); // 设置缩放
     addObject(mirror);
 
-    std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(
+    std::shared_ptr<Sphere> sphereMirror = std::make_shared<Sphere>(
         glm::vec3(0.5f, 0.4f, -0.2f), // 球体位置
         0.4f, // 半径
-        sphereMaterial
+        mirrorMaterial
+    );
+    addObject(sphereMirror);
+
+    std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(
+        glm::vec3(-0.5f, 0.4f, -0.2f), // 球体位置
+        0.4f, // 半径
+        complexMaterial
     );
     addObject(sphere);
 
-    std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
-        Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
-        glm::vec3(-0.4f, 0.4f, 0.3f), // 位置
-        glm::vec3(0.0f, 0.5f, 0.0f), // 旋转
-        glm::vec3(0.4f), // 缩放
-        std::make_shared<Material>(monkeyMaterial) // 使用之前定义的材质
-    );
-    addObject(monkey);
+    // std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
+    //     Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
+    //     glm::vec3(-0.4f, 0.4f, 0.3f), // 位置
+    //     glm::vec3(0.0f, 0.5f, 0.0f), // 旋转
+    //     glm::vec3(0.4f), // 缩放
+    //     std::make_shared<Material>(monkeyMaterial) // 使用之前定义的材质
+    // );
+    // addObject(monkey);
 
     // 灯光（顶光）
     std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(
         glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
-        10.0f, // 强度
+        6.0f, // 强度
         glm::vec3(0.0f, 1.8f, 0.0f), // 灯光位置
-        10.0f // 距离衰减
+        5.0f // 距离衰减
     );
     // std::shared_ptr<AreaLight> topLight = std::make_shared<AreaLight>(
     //     glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
@@ -376,7 +390,7 @@ void Scene::setup(){
 
     // 设置相机
     camera.setPerspective(true);
-    camera.setFovY(60.f);
+    camera.setFovY(53.f);
     camera.setPosition(glm::vec3(0.0f, 1.f, 3.0f));
     camera.setTarget(glm::vec3(0.0f, 1.0f, 0.0f));
 }

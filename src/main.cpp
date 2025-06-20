@@ -19,8 +19,8 @@ int main(int argc, char* argv[])
         SDL_Log("SDL_Init failed: $s", SDL_GetError());
     }
 
-    const int width = 160, height = 90;
-    const int screenWidth = 1920, screenHeight = 1080;
+    const int width = 720, height = 720;
+    const int screenWidth = 1080, screenHeight = 1080;
     // Create a window
     SDL_Window* window = SDL_CreateWindow("MiniRenderer", screenWidth / 2, screenHeight / 2, SDL_WINDOW_RESIZABLE);
     if (!window){
@@ -195,18 +195,18 @@ int main(int argc, char* argv[])
 
             ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
-            // Render Frame 按钮居中
-            ImGui::SetCursorPosX((ImGui::GetWindowSize().x - ImGui::CalcTextSize("Render Frame").x) / 2.0f);
-            if (ImGui::Button("Render Frame")) {
-                if (!useRayTracing) { // not rendered
-                    printf("Begin ray tracing...\n");
-                    renderer.clearBuffers();
-                    renderer.renderRayTracing(scene);
-                    printf("Ray tracing finished.\n");
-                }
-                const Buffer<uint32_t>& buffer = renderer.getBuffer();
-                ResourceManager::saveFramebufferToBMP("ray_tracing_output.bmp", renderer.getBuffer());
-            }
+            // // Render Frame 按钮居中
+            // ImGui::SetCursorPosX((ImGui::GetWindowSize().x - ImGui::CalcTextSize("Render Frame").x) / 2.0f);
+            // if (ImGui::Button("Render Frame")) {
+            //     if (!useRayTracing) { // not rendered
+            //         printf("Begin ray tracing...\n");
+            //         renderer.clearBuffers();
+            //         renderer.renderRayTracing(scene);
+            //         printf("Ray tracing finished.\n");
+            //     }
+            //     const Buffer<uint32_t>& buffer = renderer.getBuffer();
+            //     ResourceManager::saveFramebufferToBMP("ray_tracing_output.bmp", renderer.getBuffer());
+            // }
 
             // 相机位置显示在右上角
             ImGui::SetCursorPos(ImVec2(ImGui::GetWindowSize().x - 200, 10)); // 偏移到右上角

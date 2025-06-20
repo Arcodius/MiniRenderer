@@ -40,6 +40,14 @@ public:
     glm::vec3 sampleBaseColor(const glm::vec2& uv) const;
     float sampleRoughness(const glm::vec2& uv) const;
 
+    // Phong shading
+    glm::vec3 computePhong(
+        const glm::vec3& normal,
+        const glm::vec2& uv,
+        const glm::vec3& viewDir,
+        const glm::vec3& lightDir,
+        const glm::vec3& lightColor) const;
+
     // Core BRDF (Cook-Torrance)
     glm::vec3 computeBRDF(
         const glm::vec3& normal,
