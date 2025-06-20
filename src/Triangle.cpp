@@ -48,7 +48,7 @@ bool Triangle::intersect(const Ray& ray, Intersection& isect) const {
     float t = f * glm::dot(edge2, q);
     
     // Check if t is positive (correct direction)
-    if (t > EPSILON && t < isect.t) {
+    if (t > ray.t_min && t < ray.t_max) {
         isect.t = t;
         isect.position = ray.origin + t * ray.direction;
         isect.normal = glm::normalize(glm::cross(edge1, edge2));

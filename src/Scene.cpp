@@ -146,7 +146,6 @@ bool Scene::hasIntersection(const Ray& ray) const {
             nodeStack.push_back(node.rightChildIdx);
         }
     }
-
     // 遍历完所有相关节点都没有找到交点
     return false;
 }
@@ -279,7 +278,6 @@ void Scene::setup(){
     sphereMaterial.metallic = 0.0f; // 非金属
 
     std::shared_ptr<Plane> ground = std::make_shared<Plane>(
-        true,
         glm::vec3(0.0f, 0.0f, 0.0f), // 地面位置
         glm::vec3(0.0f, 1.0f, 0.0f), // 法线方向
         groundMaterial
@@ -288,7 +286,6 @@ void Scene::setup(){
     addObject(ground);
 
     std::shared_ptr<Plane> leftWall = std::make_shared<Plane>(
-        true,
         glm::vec3(-1.0f, 1.0f, 0.0f), // 左墙位置
         glm::vec3(1.0f, 0.0f, 0.0f), // 法线方向
         leftWallMaterial
@@ -297,26 +294,21 @@ void Scene::setup(){
     addObject(leftWall);
 
     std::shared_ptr<Plane> rightWall = std::make_shared<Plane>(
-        true,
         glm::vec3(1.0f, 1.0f, 0.0f), // 右墙位置
         glm::vec3(-1.0f, 0.0f, 0.0f), // 法线方向
         rightWallMaterial
     );
-    rightWall->setScale(glm::vec3(1.0f));
     addObject(rightWall);
 
     std::shared_ptr<Plane> ceiling = std::make_shared<Plane>(
-        true,
         glm::vec3(0.0f, 2.0f, 0.0f), // 顶面位置
         glm::vec3(0.0f, -1.0f, 0.0f), // 法线方向
         ceilingMaterial
     );
     addObject(ceiling);
 
-    // 后面（白色）
     std::shared_ptr<Plane> backWall = std::make_shared<Plane>(
-        true,
-        glm::vec3(0.0f, 1.0f, -1.0f), // 顶面位置
+        glm::vec3(0.0f, 1.0f, -1.0f), // 后面位置
         glm::vec3(0.0f, 0.0f, 1.0f), // 法线方向
         ceilingMaterial
     );
@@ -329,14 +321,14 @@ void Scene::setup(){
     );
     addObject(sphere);
 
-    std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
-        Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
-        glm::vec3(-0.3f, 0.3f, -0.3f), // 位置
-        glm::vec3(0.0f), // 旋转
-        glm::vec3(0.3f), // 缩放
-        std::make_shared<Material>(sphereMaterial) // 使用之前定义的材质
-    );
-    addObject(monkey);
+    // std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
+    //     Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
+    //     glm::vec3(-0.3f, 0.3f, -0.3f), // 位置
+    //     glm::vec3(0.0f), // 旋转
+    //     glm::vec3(0.3f), // 缩放
+    //     std::make_shared<Material>(sphereMaterial) // 使用之前定义的材质
+    // );
+    // addObject(monkey);
 
     // 灯光（顶光）
     std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(

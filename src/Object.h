@@ -109,10 +109,9 @@ public:
 // Plane class
 class Plane : public Object {
 glm::vec3 normal;
-bool finite;
 public:
-    Plane(bool finite, const glm::vec3& position, const glm::vec3& normal, const Material& m)
-        : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), finite(finite), normal(normal) {
+    Plane(const glm::vec3& position, const glm::vec3& normal, const Material& m)
+        : Object(Mesh(), position, glm::vec3(0.0f), glm::vec3(1.0f)), normal(normal) {
         updateRotation();
         setMaterial(std::make_shared<Material>(m));
         setAsPrimitive(Object::PrimitiveType::PLANE); // Mark as primitive

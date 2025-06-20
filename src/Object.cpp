@@ -85,9 +85,9 @@ void Object::setAsPrimitive(Object::PrimitiveType PrimitiveType) {
 }
 
 void Object::updateMesh() {
-    update();
+    update(); // 更新transform矩阵
     mesh.triangles.clear();
-    glm::mat4 modelMatrix = getMatrix();
+    glm::mat4 modelMatrix = getMatrix(); // 获取transform矩阵
     glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
     for (size_t i = 0; i < mesh.indices.size(); i += 3) {
         TransformedVertex transformedVertics[3];
@@ -184,36 +184,32 @@ bool Plane::intersect(const Ray& ray, Intersection& isect) const {
 
     glm::vec3 hitPoint = ray.origin + t * ray.direction;
 
-    if (finite) {
-        // 计算交点位置
-        glm::vec3 localPoint = hitPoint - position; // 转换到局部空间
+    glm::vec3 localPoint = hitPoint - position; // 转换到局部空间
 
-        // 根据平面的法线方向，确定边界检查的轴
-        glm::vec3 absNormal = glm::abs(normal);
-        float halfWidth = scale.x; // 平面的宽度的一半，但一般为2*2平面，故不做修改
-        float halfHeight = scale.z; // 平面的高度的一半
-        
-        if (absNormal.x > 0.99f) { // 平面垂直X轴，XY为边界轴
-            if (localPoint.y < -halfHeight || localPoint.y > halfHeight ||
-                localPoint.z < -halfWidth  || localPoint.z > halfWidth) {
-                return false;
-            }
-        } else if (absNormal.y > 0.99f) { // 平面垂直Y轴，XZ为边界轴
-            if (localPoint.x < -halfWidth || localPoint.x > halfWidth ||
-                localPoint.z < -halfHeight || localPoint.z > halfHeight) {
-                return false;
-            }
-        } else if (absNormal.z > 0.99f) { // 平面垂直Z轴，XY为边界轴
-            if (localPoint.x < -halfWidth || localPoint.x > halfWidth ||
-                localPoint.y < -halfHeight || localPoint.y > halfHeight) {
-                return false;
-            }
+    // 根据平面的法线方向，确定边界检查的轴
+    glm::vec3 absNormal = glm::abs(normal);
+    float halfWidth = scale.x; // 平面的宽度的一半，但一般为2*2平面，故不做修改
+    float halfHeight = scale.z; // 平面的高度的一半
+    
+    if (absNormal.x > 0.99f) { // 平面垂直X轴，XY为边界轴
+        if (localPoint.y < -halfHeight || localPoint.y > halfHeight ||
+            localPoint.z < -halfWidth  || localPoint.z > halfWidth) {
+            return false;
         }
-
-        isect.position = hitPoint;
-    } else {
-        isect.position = hitPoint;
+    } else if (absNormal.y > 0.99f) { // 平面垂直Y轴，XZ为边界轴
+        if (localPoint.x < -halfWidth || localPoint.x > halfWidth ||
+            localPoint.z < -halfHeight || localPoint.z > halfHeight) {
+            return false;
+        }
+    } else if (absNormal.z > 0.99f) { // 平面垂直Z轴，XY为边界轴
+        if (localPoint.x < -halfWidth || localPoint.x > halfWidth ||
+            localPoint.y < -halfHeight || localPoint.y > halfHeight) {
+            return false;
+        }
     }
+
+    isect.position = hitPoint;
+
 
     isect.t = t;
     isect.normal = normal;

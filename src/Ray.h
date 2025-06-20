@@ -5,7 +5,7 @@
 struct Ray {
     glm::vec3 origin;
     glm::vec3 direction;
-    float t_min = 0.0f;
+    float t_min = EPSILON;
     float t_max = std::numeric_limits<float>::max();
 
     Ray(const glm::vec3& o, const glm::vec3& d)
