@@ -130,7 +130,9 @@ void Renderer::_drawTrianglePhong(
                     glm::vec3 color = glm::vec3(0.0f);
                     for (const auto& light : lights) {
                         if (light->getDistance(pos) < EPSILON) continue; // 避免光源距离过近
-                        color += _computePhongColor(pos, normal, light, camera.getPosition(), baseColor);
+                        // color += _computePhongColor(pos, normal, light, camera.getPosition(), baseColor);
+                        color += material->computePhong(
+                            normal, uv, camera.getPosition() - pos, light->getDirection(pos), light->getColor());
                         // color += material->computeBRDF(
                         //     normal, uv, camera.getPosition() - pos, light->getDirection(pos), light->getColor());
                     }
