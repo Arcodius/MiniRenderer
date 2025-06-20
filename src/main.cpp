@@ -4,6 +4,7 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_sdlrenderer3.h>
 
+#include <iostream>
 #include <string>
 
 #include "Renderer.h"
@@ -18,8 +19,27 @@ int main(int argc, char* argv[])
     if ((int)SDL_Init(SDL_INIT_VIDEO) < 0){
         SDL_Log("SDL_Init failed: $s", SDL_GetError());
     }
+    
+    int width = 480, height = 480;
+    // user input
+    std::cout << "Enter width and height (default 480x480):\n";
+    // 检查宽度输入
+    std::cout << "Width = ";
+    while (!(std::cin >> width) || width <= 0) {
+        std::cin.clear(); // 清除错误状态
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // 忽略错误输入
+        std::cout << "Invalid input. Please enter a positive integer for width: ";
+    }
 
-    const int width = 720, height = 720;
+    // 检查高度输入
+    std::cout << "Height = ";
+    while (!(std::cin >> height) || height <= 0) {
+        std::cin.clear(); // 清除错误状态
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // 忽略错误输入
+        std::cout << "Invalid input. Please enter a positive integer for height: ";
+    }
+
+    std::cout << "\nUsing resolution: " << width << "x" << height << std::endl;
     const int screenWidth = 1080, screenHeight = 1080;
     // Create a window
     SDL_Window* window = SDL_CreateWindow("MiniRenderer", screenWidth / 2, screenHeight / 2, SDL_WINDOW_RESIZABLE);

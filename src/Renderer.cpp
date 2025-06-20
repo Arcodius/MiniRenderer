@@ -272,9 +272,9 @@ void Renderer::render(Scene scene) {
 void Renderer::renderRayTracing(Scene scene) {
     clearBuffers();
     // save mode only!
-    if (firstFrameSaved){
-        exit(0);
-    }
+    // if (firstFrameSaved){
+    //     exit(0);
+    // }
     // Iterate over each pixel in the framebuffer
     for (int y = 0; y < screenHeight; ++y) {
         std::fprintf(stderr, "\rRendering... %5.2f%%", 100.0 * y / (screenHeight - 1));
@@ -312,11 +312,11 @@ void Renderer::renderRayTracing(Scene scene) {
     }
     std::fprintf(stderr, "\nDone.\n");
 
-    if (!firstFrameSaved) {
-        // Save the first frame to a file
-        ResourceManager::saveFramebufferToBMP("ray_tracing_output.png", getBuffer());
-        firstFrameSaved = true;
-    }
+    // if (!firstFrameSaved) {
+    //     // Save the first frame to a file
+    //     ResourceManager::saveFramebufferToBMP("ray_tracing_output.bmp", getBuffer());
+    //     firstFrameSaved = true;
+    // }
 }
 
 glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
@@ -378,8 +378,8 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
             }
             glm::vec3 lightDir = light->getDirection(intersection.position);
             glm::vec3 lightColor = light->getColor() * light->getIntensity(intersection.position);
-            // directLightingColor += mat.computeBRDF(intersection.normal, intersection.uv, viewDir, lightDir, lightColor);
-            directLightingColor += mat.computePhong(intersection.normal, intersection.uv, viewDir, lightDir, lightColor);
+            directLightingColor += mat.computeBRDF(intersection.normal, intersection.uv, viewDir, lightDir, lightColor);
+            // directLightingColor += mat.computePhong(intersection.normal, intersection.uv, viewDir, lightDir, lightColor);
         }
     }
 

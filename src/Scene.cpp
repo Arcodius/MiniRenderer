@@ -348,14 +348,14 @@ void Scene::setup(){
     addObject(mirror);
 
     std::shared_ptr<Sphere> sphereMirror = std::make_shared<Sphere>(
-        glm::vec3(0.5f, 0.4f, -0.2f), // 球体位置
+        glm::vec3(-0.5f, 0.4f, -0.2f), // 球体位置
         0.4f, // 半径
         mirrorMaterial
     );
     addObject(sphereMirror);
 
     std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(
-        glm::vec3(-0.5f, 0.4f, -0.2f), // 球体位置
+        glm::vec3(0.5f, 0.4f, -0.2f), // 球体位置
         0.4f, // 半径
         complexMaterial
     );
