@@ -126,14 +126,13 @@ void Renderer::_drawTrianglePhong(
                     // 透视修正插值 uv
                     float invW = a * invW0 + b * invW1 + c * invW2;
                     glm::vec2 uv = (a * uv0_w + b * uv1_w + c * uv2_w) / invW;
-                    // glm::vec3 baseColor = sampleTexture(textureData, uv, textureWidth, textureHeight);
-                    // glm::vec3 baseColor = material->sampleBaseColor(uv);
+                    glm::vec3 baseColor = material->sampleBaseColor(uv);
                     glm::vec3 color = glm::vec3(0.0f);
                     for (const auto& light : lights) {
                         if (light->getDistance(pos) < EPSILON) continue; // 避免光源距离过近
-                        // color += _computePhongColor(pos, normal, light, camera.getPosition(), baseColor);
-                        color += material->computeBRDF(
-                            normal, uv, camera.getPosition() - pos, light->getDirection(pos), light->getColor());
+                        color += _computePhongColor(pos, normal, light, camera.getPosition(), baseColor);
+                        // color += material->computeBRDF(
+                        //     normal, uv, camera.getPosition() - pos, light->getDirection(pos), light->getColor());
                     }
                     color = glm::clamp(color, 0.0f, 1.0f); // 确保颜色在 [0, 1] 范围内
                     framebuffer[idx] = Color::VecToUint32(color); // 映射 [-1,1] → [0,1]

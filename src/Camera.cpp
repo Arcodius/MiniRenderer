@@ -213,11 +213,11 @@ void Camera::moveRight(float amount) {
 
 void Camera::handleScroll(float scrollY, float deltaTime){
 	if (projectionType == PERSPECTIVE) {
-		float newFov = fovY + scrollY * 10.f * deltaTime; // 缩放速度可调
+		float newFov = fovY + scrollY * 75.f * deltaTime; // 缩放速度可调
 		fovY = CLAMP(newFov, 10.0f, 120.0f); // 限制视角范围
 		tanHalfFovy = tan(glm::radians(fovY) * 0.5f);
 	} else {
-		float newZoom = zoomFactor * std::pow(0.9f, scrollY * deltaTime); // 每滚动一步缩放10%
+		float newZoom = zoomFactor * std::pow(0.25f, scrollY * deltaTime); // 每滚动一步缩放10%
 		zoomFactor = CLAMP(newZoom, 0.01f, 100.0f); // 限制缩放因子
 	}
 

@@ -357,21 +357,21 @@ void Scene::setup(){
     addObject(monkey);
 
     // 灯光（顶光）
-    // std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(
+    std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(
+        glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
+        10.0f, // 强度
+        glm::vec3(0.0f, 1.8f, 0.0f), // 灯光位置
+        10.0f // 距离衰减
+    );
+    // std::shared_ptr<AreaLight> topLight = std::make_shared<AreaLight>(
     //     glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
     //     25.0f, // 强度
-    //     glm::vec3(0.0f, 1.8f, 0.0f), // 灯光位置
-    //     10.0f // 距离衰减
+    //     glm::vec3(0.0f, 1.9f, 0.0f), // 灯光位置
+    //     glm::vec3(1.0f, 0.0f, 0.0f), // u_dir
+    //     glm::vec3(0.0f, 0.0f, 1.0f), // v_dir
+    //     2.f, // width
+    //     2.f // height
     // );
-    std::shared_ptr<AreaLight> topLight = std::make_shared<AreaLight>(
-        glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
-        25.0f, // 强度
-        glm::vec3(0.0f, 1.9f, 0.0f), // 灯光位置
-        glm::vec3(1.0f, 0.0f, 0.0f), // u_dir
-        glm::vec3(0.0f, 0.0f, 1.0f), // v_dir
-        2.f, // width
-        2.f // height
-    );
     addLight(topLight);
 
     // 设置相机

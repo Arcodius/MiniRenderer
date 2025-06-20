@@ -137,6 +137,17 @@ int main(int argc, char* argv[])
             }
         }
 
+        // 切换相机投影
+        if (keyboardState[SDL_SCANCODE_P]) {
+            scene.camera.setPerspective(true);
+        }
+        if (keyboardState[SDL_SCANCODE_O]) {
+            scene.camera.setPerspective(false); // 切换为正交投影
+        }
+        if (keyboardState[SDL_SCANCODE_R]) {
+            scene.camera.reset(); // 重置相机
+        }
+
         
 
         // 1. 渲染到 framebuffer
