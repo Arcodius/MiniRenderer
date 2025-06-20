@@ -313,7 +313,7 @@ void Scene::setup(){
     std::shared_ptr<Plane> leftWall = std::make_shared<Plane>(
         glm::vec3(-1.0f, 1.0f, 0.0f), // 左墙位置
         glm::vec3(1.0f, 0.0f, 0.0f), // 法线方向
-        leftWallMaterial
+        mirrorMaterial
     );
     leftWall->setScale(glm::vec3(1.f));
     addObject(leftWall);
@@ -339,13 +339,13 @@ void Scene::setup(){
     );
     addObject(backWall);
 
-    std::shared_ptr<Plane> mirror = std::make_shared<Plane>(
-        glm::vec3(-0.95f, 0.6f, 0.0f), // 镜子位置
-        glm::vec3(1.0f, 0.0f, 0.0f), // 法线方向
-        mirrorMaterial // 使用默认材质
-    );
-    mirror->setScale(glm::vec3(0.6f)); // 设置缩放
-    addObject(mirror);
+    // std::shared_ptr<Plane> mirror = std::make_shared<Plane>(
+    //     glm::vec3(-0.95f, 0.6f, 0.0f), // 镜子位置
+    //     glm::vec3(1.0f, 0.0f, 0.0f), // 法线方向
+    //     mirrorMaterial // 使用默认材质
+    // );
+    // mirror->setScale(glm::vec3(0.6f)); // 设置缩放
+    // addObject(mirror);
 
     std::shared_ptr<Sphere> sphereMirror = std::make_shared<Sphere>(
         glm::vec3(-0.5f, 0.4f, -0.2f), // 球体位置
