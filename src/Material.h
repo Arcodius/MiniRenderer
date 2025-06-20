@@ -46,6 +46,12 @@ public:
         const glm::vec3& viewDir,
         const glm::vec3& lightDir,
         const glm::vec3& lightColor) const;
+    glm::vec3 computeBRDF(
+        const glm::vec3& normal,
+        const glm::vec2& uv,
+        const glm::vec3& viewDir,
+        const glm::vec3& lightDir,
+        const glm::vec3& lightColor) const;
     
     static std::shared_ptr<Material> defualtMat() { return std::make_shared<Material>("default"); }
 };

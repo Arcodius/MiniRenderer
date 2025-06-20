@@ -16,8 +16,9 @@ struct Vertex;
 
 class Renderer {
 private:
-	static constexpr int MAX_DEPTH = 2; // Maximum recursion depth for ray tracing
-
+	static constexpr int MAX_DEPTH = 3; // Maximum recursion depth for ray tracing
+	const int SAMPLES_PER_LIGHT = 4;
+	const int SAMPLES_PER_PIXEL = 4;
 public:
 	int screenWidth, screenHeight;
 	Buffer<uint32_t> framebuffer;

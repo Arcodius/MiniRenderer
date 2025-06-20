@@ -43,6 +43,7 @@ void Camera::setFovY(float fovY) {
 		this->fovY = fovY;
 		isProjectionDirty = true;
 	}
+	tanHalfFovy = tan(glm::radians(fovY) * 0.5f);
 }
 
 void Camera::setNearClip(float nearClip) {
@@ -120,7 +121,6 @@ glm::mat4 Camera::getProjectionMatrix() {
 
 // Perspective projection: view space -> clip space -> NDC
 glm::mat4 Camera::_getPerspectiveMatrix(){
-    float tanHalfFovy = 1.0f / tan(glm::radians(fovY / 2.0f));
 	float rangeInv = 1.0f / (f - n);
 
     glm::mat4 persp = glm::mat4(0.0f); // 初始化为零矩阵
@@ -161,6 +161,7 @@ void Camera::reset() {
 	target = glm::vec3(0, 0, 0);
 	up = glm::vec3(0, 1, 0);
 	fovY = 90.0f;
+	tanHalfFovy = tan(glm::radians(fovY) * 0.5f);
 	aspect = 1.0f;
 	n = 0.1f;
 	f = 100.0f;
@@ -214,6 +215,7 @@ void Camera::handleScroll(float scrollY, float deltaTime){
 	if (projectionType == PERSPECTIVE) {
 		float newFov = fovY + scrollY * 10.f * deltaTime; // 缩放速度可调
 		fovY = CLAMP(newFov, 10.0f, 120.0f); // 限制视角范围
+		tanHalfFovy = tan(glm::radians(fovY) * 0.5f);
 	} else {
 		float newZoom = zoomFactor * std::pow(0.9f, scrollY * deltaTime); // 每滚动一步缩放10%
 		zoomFactor = CLAMP(newZoom, 0.01f, 100.0f); // 限制缩放因子
@@ -228,14 +230,31 @@ Ray Camera::generateRay(int x, int y, int width, int height) const {
     float ndcY = 1.0f - (y + 0.5f) / height * 2.0f; // y反过来
 
     // 计算屏幕空间坐标
-    float tanFov = tanf(glm::radians(fovY) * 0.5f);
     float aspectRatio = static_cast<float>(width) / height; // 根据传入的宽高计算长宽比
-    float px = ndcX * aspectRatio * tanFov;
-    float py = ndcY * tanFov;
+    float px = ndcX * aspectRatio * tanHalfFovy;
+    float py = ndcY * tanHalfFovy;
 
     // 构造 ray direction in world space
     glm::vec3 dir = glm::normalize(px * right + py * up + front);
 
+    return Ray(position, dir);
+}
+
+Ray Camera::generateRay(float x, float y, int screenWidth, int screenHeight) const {
+    // 将像素坐标 (x, y) 转换为归一化的设备坐标 (NDC) [-1, 1]
+    float ndc_x = (2.0f * x / screenWidth) - 1.0f;
+    float ndc_y = 1.0f - (2.0f * y / screenHeight); // Y轴通常是反的
+
+    // 转换到相机空间
+    // fov 和 aspect_ratio 是相机的属性
+	float aspectRatio = static_cast<float>(screenWidth) / screenHeight;
+    float camera_x = ndc_x * aspectRatio * tanHalfFovy;
+    float camera_y = ndc_y * tanHalfFovy;
+
+    // 计算世界空间中的光线方向
+    // position, forward, up, right 是相机在世界空间中的属性
+    glm::vec3 dir = glm::normalize(camera_x * right + camera_y * up + front);
+    
     return Ray(position, dir);
 }
 

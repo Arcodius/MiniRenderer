@@ -86,11 +86,6 @@ int main(int argc, char* argv[])
             // 切换渲染模式
             if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_TAB) {
                 useRayTracing = !useRayTracing; // Toggle rendering mode
-                if (useRayTracing) {
-                    SDL_Log("Switched to Ray Tracing mode");
-                } else {
-                    SDL_Log("Switched to Rasterization mode");
-                }
             }
 
             // 右键按下启用相对鼠标模式

@@ -18,11 +18,11 @@ Implement a 3D scene renderer without relying on open-source rendering tools (e.
 3. **Rendering**  
     - ✅(1) Include at least two triangle mesh models in the scene.  
     - ✅(2) Implement the Phong lighting model.  
-    - (3) Implement a ray tracing algorithm.  
+    - ✅(3) Implement a ray tracing algorithm.  
     - ✅(4) Implement texture mapping.  
     - *Optional:*  
-      - (1) Implement area light sources.  
-      - (2) Implement the BRDF reflection model.  
+      - ✅(1) Implement area light sources.  
+      - ✅(2) Implement the BRDF reflection model.  
       - (3) Implement transparent textures.  
       - (4) Implement global illumination.
 
@@ -53,7 +53,3 @@ Once the configuration is complete, build the project using the following comman
 ```bash
 cmake --build .
 ```  
-
-TODO
-
-1. 光照计算似乎有点bug，角度位置不太对，可能是normal问题

@@ -249,17 +249,22 @@ int Scene::buildBVHRecursive(int start, int end, int currentDepth) {
 void Scene::setup(){
     // 地面
     Material groundMaterial;
-    groundMaterial.baseColor= glm::vec3(0.5f, 0.5f, 0.5f); // 灰色
+    groundMaterial.baseColor= glm::vec3(0.6f); // 灰色
     groundMaterial.roughness = 0.8f; // 粗糙
     groundMaterial.metallic = 0.0f; // 非金属
 
     // 顶面（白色）
     Material ceilingMaterial;
-    ceilingMaterial.baseColor = glm::vec3(1.0f, 1.0f, 1.0f); // 白色
+    ceilingMaterial.baseColor = glm::vec3(0.6f); // 白色
     ceilingMaterial.roughness = 0.8f; // 粗糙
     ceilingMaterial.metallic = 0.0f; // 非金属
 
-    // // 左墙（红色）
+    // 背墙
+    Material backWallMaterial;
+    backWallMaterial.loadBaseColorMap("Resources\\wall.jpg"); // 加载纹理
+    backWallMaterial.loadRoughnessMap("Resources\\wall.jpg"); // 加载粗糙度纹理
+
+    // 左墙（红色）
     Material leftWallMaterial;
     leftWallMaterial.baseColor= glm::vec3(1.0f, 0.0f, 0.0f); // 红色
     leftWallMaterial.roughness = 0.8f; // 粗糙
@@ -273,9 +278,22 @@ void Scene::setup(){
 
     // 球体
     Material sphereMaterial;
-    sphereMaterial.baseColor = glm::vec3(0.0f, 0.0f, 1.0f); // 蓝色
-    sphereMaterial.roughness = 0.2f; // 光滑
-    sphereMaterial.metallic = 0.0f; // 非金属
+    sphereMaterial.baseColor = glm::vec3(0.8f, 0.7f, 0.75f); // 蓝色
+    sphereMaterial.roughness = 0.1f; // 光滑
+    sphereMaterial.metallic = 0.2f; // 非金属
+
+    // 猴子
+    Material monkeyMaterial;
+    monkeyMaterial.baseColor = glm::vec3(0.8f, 0.5f, 0.2f); // 棕色
+    monkeyMaterial.roughness = 0.5f; // 中等粗糙
+    monkeyMaterial.metallic = 0.0f; // 非金属
+    monkeyMaterial.loadBaseColorMap("Resources\\liquid.jpg");
+
+    // 镜子
+    Material mirrorMaterial;
+    mirrorMaterial.baseColor = glm::vec3(1.0f); // 镜子颜色
+    mirrorMaterial.roughness = 0.0f; // 完全光滑
+    mirrorMaterial.metallic = 1.0f; // 金属材质
 
     std::shared_ptr<Plane> ground = std::make_shared<Plane>(
         glm::vec3(0.0f, 0.0f, 0.0f), // 地面位置
@@ -310,77 +328,61 @@ void Scene::setup(){
     std::shared_ptr<Plane> backWall = std::make_shared<Plane>(
         glm::vec3(0.0f, 1.0f, -1.0f), // 后面位置
         glm::vec3(0.0f, 0.0f, 1.0f), // 法线方向
-        ceilingMaterial
+        backWallMaterial
     );
     addObject(backWall);
 
+    std::shared_ptr<Plane> mirror = std::make_shared<Plane>(
+        glm::vec3(-0.95f, 0.6f, 0.0f), // 镜子位置
+        glm::vec3(1.0f, 0.0f, 0.0f), // 法线方向
+        mirrorMaterial // 使用默认材质
+    );
+    mirror->setScale(glm::vec3(0.6f)); // 设置缩放
+    addObject(mirror);
+
     std::shared_ptr<Sphere> sphere = std::make_shared<Sphere>(
-        glm::vec3(0.5f, 0.4f, 0.5f), // 球体位置
+        glm::vec3(0.5f, 0.4f, -0.2f), // 球体位置
         0.4f, // 半径
         sphereMaterial
     );
     addObject(sphere);
 
-    // std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
-    //     Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
-    //     glm::vec3(-0.3f, 0.3f, -0.3f), // 位置
-    //     glm::vec3(0.0f), // 旋转
-    //     glm::vec3(0.3f), // 缩放
-    //     std::make_shared<Material>(sphereMaterial) // 使用之前定义的材质
-    // );
-    // addObject(monkey);
+    std::shared_ptr<GenericObject> monkey = std::make_shared<GenericObject>(
+        Mesh("Resources\\monkey.obj"), // 使用预先加载的猴子模型
+        glm::vec3(-0.4f, 0.4f, 0.3f), // 位置
+        glm::vec3(0.0f, 0.5f, 0.0f), // 旋转
+        glm::vec3(0.4f), // 缩放
+        std::make_shared<Material>(monkeyMaterial) // 使用之前定义的材质
+    );
+    addObject(monkey);
 
     // 灯光（顶光）
-    std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(
+    // std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(
+    //     glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
+    //     25.0f, // 强度
+    //     glm::vec3(0.0f, 1.8f, 0.0f), // 灯光位置
+    //     10.0f // 距离衰减
+    // );
+    std::shared_ptr<AreaLight> topLight = std::make_shared<AreaLight>(
         glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
         25.0f, // 强度
-        glm::vec3(0.0f, 1.8f, 0.0f), // 灯光位置
-        10.0f // 距离衰减
+        glm::vec3(0.0f, 1.9f, 0.0f), // 灯光位置
+        glm::vec3(1.0f, 0.0f, 0.0f), // u_dir
+        glm::vec3(0.0f, 0.0f, 1.0f), // v_dir
+        2.f, // width
+        2.f // height
     );
     addLight(topLight);
 
     // 设置相机
     camera.setPerspective(true);
-    camera.setFovY(90.0f);
+    camera.setFovY(60.f);
     camera.setPosition(glm::vec3(0.0f, 1.f, 3.0f));
     camera.setTarget(glm::vec3(0.0f, 1.0f, 0.0f));
 }
 
 Scene::Scene (){
     camera = Camera();
-
     setup();
-
     buildBVH();
-
-    // 调试输出
-    // for (int i = 0; i < flattenedTriangles.size(); ++i) {
-    //     const Triangle& tri = flattenedTriangles[i];
-    //     printf("Triangle %d: (%f,%f,%f)-(%f,%f,%f)-(%f,%f,%f)\n",
-    //         i,
-    //         tri.vertices[0].worldPos.x, tri.vertices[0].worldPos.y, tri.vertices[0].worldPos.z,
-    //         tri.vertices[1].worldPos.x, tri.vertices[1].worldPos.y, tri.vertices[1].worldPos.z,
-    //         tri.vertices[2].worldPos.x, tri.vertices[2].worldPos.y, tri.vertices[2].worldPos.z
-    //     );
-    //     printf("normal: (%f,%f,%f)\n",
-    //         tri.vertices[0].worldNormal.x, tri.vertices[0].worldNormal.y, tri.vertices[0].worldNormal.z
-    //     );
-    //     printf("uv: (%f,%f)-(%f,%f)-(%f,%f)\n",
-    //         tri.vertices[0].uv.x, tri.vertices[0].uv.y,
-    //         tri.vertices[1].uv.x, tri.vertices[1].uv.y,
-    //         tri.vertices[2].uv.x, tri.vertices[2].uv.y
-    //     );
-    // }
-    // for (int i = 0; i < bvhNodes.size(); ++i) {
-    //     const auto& node = bvhNodes[i];
-    //     printf("BVH Node %d: bbox=(%f,%f,%f)-(%f,%f,%f), numPrims=%d, firstPrimIdx=%d, leftChildIdx=%d, rightChildIdx=%d\n",
-    //         i,
-    //         node.bbox.minBounds.x, node.bbox.minBounds.y, node.bbox.minBounds.z,
-    //         node.bbox.maxBounds.x, node.bbox.maxBounds.y, node.bbox.maxBounds.z,
-    //         node.numPrimitives, node.firstPrimitiveIdx, node.leftChildIdx, node.rightChildIdx
-    //     );
-    // }
-    // for (int i=0; i< primitiveIndices.size(); ++i) {
-    //     printf("Primitive Index %d: %d\n", i, primitiveIndices[i]);
-    // }
 }

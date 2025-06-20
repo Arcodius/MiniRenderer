@@ -16,6 +16,7 @@ private:
     glm::vec3 worldUp = glm::vec3(0, 1, 0);
 
     float fovY;      // in degrees
+    float tanHalfFovy; // 用于透视投影计算
     float aspect;    // width / height
 
     float n;
@@ -74,5 +75,6 @@ public:
 
     // Light tracing
     Ray generateRay(int x, int y, int width, int height) const;
+    Ray generateRay(float x, float y, int screenWidth, int screenHeight) const;
 
 };

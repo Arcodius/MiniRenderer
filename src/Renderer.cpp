@@ -1,6 +1,7 @@
 #include "Renderer.h"
 
 #include <array>   // Include <array> for std::array usage
+#include <typeinfo>
 #include "Color.h"
 #include "Intersection.h"
 #include "Material.h"
@@ -126,11 +127,13 @@ void Renderer::_drawTrianglePhong(
                     float invW = a * invW0 + b * invW1 + c * invW2;
                     glm::vec2 uv = (a * uv0_w + b * uv1_w + c * uv2_w) / invW;
                     // glm::vec3 baseColor = sampleTexture(textureData, uv, textureWidth, textureHeight);
-                    glm::vec3 baseColor = material->sampleBaseColor(uv);
+                    // glm::vec3 baseColor = material->sampleBaseColor(uv);
                     glm::vec3 color = glm::vec3(0.0f);
                     for (const auto& light : lights) {
                         if (light->getDistance(pos) < EPSILON) continue; // 避免光源距离过近
-                        color += _computePhongColor(pos, normal, light, camera.getPosition(), baseColor);
+                        // color += _computePhongColor(pos, normal, light, camera.getPosition(), baseColor);
+                        color += material->computeBRDF(
+                            normal, uv, camera.getPosition() - pos, light->getDirection(pos), light->getColor());
                     }
                     color = glm::clamp(color, 0.0f, 1.0f); // 确保颜色在 [0, 1] 范围内
                     framebuffer[idx] = Color::VecToUint32(color); // 映射 [-1,1] → [0,1]
@@ -154,7 +157,7 @@ glm::vec3 Renderer::_computePhongColor(const glm::vec3& pos, const glm::vec3& no
 	glm::vec3 diffuse = diff * baseColor;
 	glm::vec3 specular = spec * glm::vec3{ 1,1,1 }; // white specular
 
-	glm::vec3 color = (ambient + diffuse + specular)*light->getIntensity(pos);
+	glm::vec3 color = (ambient + diffuse + specular) * light->getIntensity(pos);
 	return glm::clamp(color, 0.0f, 1.0f);
 }
 
@@ -256,6 +259,15 @@ void Renderer::render(Scene scene) {
             }
         }
     }
+    // gamma correction
+    for (int i = 0; i < framebuffer.width * framebuffer.height; ++i) {
+        uint32_t color = framebuffer[i];
+        glm::vec3 linearColor = Color::Uint32ToVec(color);
+        linearColor.r = glm::pow(linearColor.r, 1.0f / 2.2f);
+        linearColor.g = glm::pow(linearColor.g, 1.0f / 2.2f);
+        linearColor.b = glm::pow(linearColor.b, 1.0f / 2.2f);
+        framebuffer[i] = Color::VecToUint32(linearColor);
+    }
 }
 
 void Renderer::renderRayTracing(Scene scene) {
@@ -263,15 +275,43 @@ void Renderer::renderRayTracing(Scene scene) {
 
     // Iterate over each pixel in the framebuffer
     for (int y = 0; y < screenHeight; ++y) {
+        // 为了看到渲染进度，可以在每行渲染完后打印日志
+        std::fprintf(stderr, "\rRendering... %5.2f%%", 100.0 * y / (screenHeight - 1));
+
         for (int x = 0; x < screenWidth; ++x) {
-            // Generate ray for the current pixel
-            Ray ray = scene.camera.generateRay(x, y, screenWidth, screenHeight);
-            // Trace the ray through the scene
-            glm::vec3 color = traceRay(ray, scene, 0);
+            glm::vec3 accumulatedColor(0.0f);
+
+            // --- 新增的采样循环 ---
+            for (int s = 0; s < SAMPLES_PER_PIXEL; ++s) {
+                // 为当前像素生成一个随机的子像素坐标
+                // 例如，对于像素 (x, y)，我们生成一个在 [x, x+1] 和 [y, y+1] 之间的随机点
+                float rand_u = distribution(generator);
+                float rand_v = distribution(generator);
+                float sample_x = static_cast<float>(x) + rand_u;
+                float sample_y = static_cast<float>(y) + rand_v;
+
+                // 使用随机化的坐标生成光线
+                Ray ray = scene.camera.generateRay(sample_x, sample_y, screenWidth, screenHeight);
+
+                // 追踪光线并累加颜色
+                accumulatedColor += traceRay(ray, scene, 0);
+            }
+
+            // --- 计算平均颜色 ---
+            glm::vec3 finalColor = accumulatedColor / static_cast<float>(SAMPLES_PER_PIXEL);
+            
+            // --- Gamma 校正 ---
+            // 我们的计算是在线性空间中进行的，但显示器通常是 sRGB (gamma ~2.2)
+            // 在写入帧缓冲前进行 Gamma 校正可以获得更正确的亮度和对比度
+            finalColor.r = glm::pow(finalColor.r, 1.0f / 2.2f);
+            finalColor.g = glm::pow(finalColor.g, 1.0f / 2.2f);
+            finalColor.b = glm::pow(finalColor.b, 1.0f / 2.2f);
+
             // Write the color to the framebuffer
-            framebuffer.setPixel(x, y, Color::VecToUint32(color));
+            framebuffer.setPixel(x, y, Color::VecToUint32(finalColor));
         }
     }
+    std::fprintf(stderr, "\nDone.\n");
 }
 
 glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
@@ -284,43 +324,87 @@ glm::vec3 Renderer::traceRay(const Ray& ray, const Scene& scene, int depth) {
         return scene.getBackgroundColor();
     }
     const Material& mat = *intersection.material;
+    glm::vec3 viewDir = glm::normalize(scene.camera.getPosition() - intersection.position);
 
-    glm::vec3 color(0.0f);
+    // --- 主要修改区域 ---
+    // Emissive color (if the object itself is a light source)
+    // glm::vec3 emissiveColor = mat.getEmission(); // 如果你的材质有自发光属性
 
     // === 1. compute BRDF-based local shading ===
-    glm::vec3 viewDir = glm::normalize(scene.camera.getPosition() - intersection.position);
+    glm::vec3 directLightingColor(0.0f);
     for (const auto& light : scene.lights) {
-        glm::vec3 lightDir = light->getDirection(intersection.position);
-        glm::vec3 lightColor = light->getColor() * light->getIntensity(intersection.position);
-        if (isInShadow(intersection.position, scene, light->getPosition())) {
-            continue; // Skip if in shadow
+        // 尝试将 light 转换为 AreaLight* 类型
+        if (const AreaLight* areaLight = dynamic_cast<const AreaLight*>(light.get())) {
+            // --- 这是区域光 (Area Light) 的处理逻辑 ---
+            glm::vec3 lightContribution(0.0f);
+            for (int i = 0; i < SAMPLES_PER_LIGHT; ++i) {
+                // 1. 在区域光表面采样一个点，这个点在本次循环中保持不变
+                glm::vec3 lightSamplePos = areaLight->samplePointOnLight();
+
+                // 2. 检查从交点到该采样点的路径是否被遮挡 (软阴影的关键)
+                if (isInShadow(intersection.position, scene, lightSamplePos)) {
+                    continue;
+                }
+
+                // 3. 计算光照方向和距离
+                glm::vec3 lightDir = lightSamplePos - intersection.position;
+                float distance2 = glm::dot(lightDir, lightDir);
+                lightDir = glm::normalize(lightDir);
+
+                // 4. 计算该采样点的光照强度
+                float attenuation = 1.0f / (distance2 + 1.0f); // 和你的点光源衰减方式保持一致
+                float cos_theta = glm::dot(areaLight->normal, -lightDir);
+                
+                // 仅当从正面照射时才计算光照
+                if (cos_theta > 0.0f) {
+                    glm::vec3 lightEnergy = areaLight->getColor() * areaLight->intensity * attenuation * cos_theta;
+                    // lightContribution += mat.computeBRDF(intersection.normal, viewDir, lightDir, lightEnergy);
+                    lightContribution += mat.computeBRDF(intersection.normal, intersection.uv, viewDir, lightDir, lightEnergy);
+                }
+            }
+            // 将所有采样结果平均，并加到直接光照颜色中
+            directLightingColor += lightContribution / static_cast<float>(SAMPLES_PER_LIGHT);
+
+        } else {
+            // --- 这是点光源 (Point Light) 或其他类型光的处理逻辑 (保持原样) ---
+            glm::vec3 lightPos = light->getPosition();
+            if (isInShadow(intersection.position, scene, lightPos)) {
+                continue;
+            }
+            glm::vec3 lightDir = light->getDirection(intersection.position);
+            glm::vec3 lightColor = light->getColor() * light->getIntensity(intersection.position);
+            // directLightingColor += mat.computeBRDF(intersection.normal, viewDir, lightDir, lightColor);
+            directLightingColor += mat.computeBRDF(intersection.normal, intersection.uv, viewDir, lightDir, lightColor);
         }
-        color += mat.computeBRDF(intersection.normal, viewDir, lightDir, lightColor);
     }
 
-    // === 2. optionally compute reflection for low roughness metals ===
+    // 将直接光照、反射、折射结合起来
+    glm::vec3 finalColor = directLightingColor; // 从直接光照开始
+
+    // === 2. optionally compute reflection ===
+    // (你的反射逻辑保持不变)
     glm::vec3 reflectionColor(0.0f);
     if (mat.metallic > 0.0f && mat.roughness < 0.2f) {
-        glm::vec3 reflectDir = glm::reflect(ray.direction, intersection.normal);
-        Ray reflectedRay(intersection.position + reflectDir * 1e-4f, reflectDir);
+        Ray reflectedRay = computeReflectedRay(ray, intersection);
         reflectionColor = traceRay(reflectedRay, scene, depth + 1);
         
-        // Fresnel factor from Schlick (reuse logic inside computeBRDF if needed)
         float NdotV = glm::dot(intersection.normal, -ray.direction);
         glm::vec3 F0 = glm::mix(glm::vec3(0.04f), mat.baseColor, mat.metallic);
         glm::vec3 fresnel = F0 + (1.0f - F0) * glm::pow(1.0f - NdotV, 5.0f);
-
-        color += fresnel * reflectionColor; // Add specular reflection
+        finalColor += fresnel * reflectionColor;
     }
 
-    // === 3. optionally compute refraction for transparent dielectrics ===
+    // === 3. optionally compute refraction ===
+    // (你的折射逻辑保持不变, 但请注意混合方式)
     if (mat.transparency > 0.0f) {
-        Ray refractedRay = computeRefractedRay(ray, intersection);
+        Ray refractedRay = computeRefractedRay(ray, intersection); // 假设你已实现此函数
         glm::vec3 refractedColor = traceRay(refractedRay, scene, depth + 1);
-        color = glm::mix(color, refractedColor, mat.transparency);
+        // 使用 mix 混合直接光照/反射和折射
+        // 注意：这里的混合可能需要更复杂的物理模型，但 mix 是一个不错的开始
+        finalColor = glm::mix(finalColor, refractedColor, mat.transparency);
     }
 
-    return glm::clamp(color, 0.0f, 1.0f);
+    return glm::clamp(finalColor, 0.0f, 1.0f);
 }
 
 
