@@ -5,6 +5,7 @@
 #include "Buffer.h"
 #include "Vertex.h"
 
+// Forward declarations
 class Camera;
 struct Intersection;
 class Light;
@@ -13,14 +14,19 @@ class Material;
 struct Ray;
 class Scene;
 struct Vertex;
+class CudaRenderer;
 
 class Renderer {
 private:
-	static constexpr int MAX_DEPTH = 4; // Maximum recursion depth for ray tracing
+	static constexpr int MAX_DEPTH = 8; // Maximum recursion depth for ray tracing
 	const int SAMPLES_PER_LIGHT = 4;
 	const int SAMPLES_PER_PIXEL = 8;
 
 	bool firstFrameSaved = false;
+	
+	// CUDA acceleration
+	bool enableCuda = false;
+	void* cudaRenderer; // Use void* to avoid incomplete type issues
 public:
 	int screenWidth, screenHeight;
 	Buffer<uint32_t> framebuffer;
@@ -50,13 +56,21 @@ private:
 	bool isInShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos);
 	float computeSoftShadow(const glm::vec3& point, const Scene& scene, const glm::vec3& lightPos, int numSamples);
 	glm::vec3 traceRay(const Ray& ray, const Scene& scene, int depth);
+	
+	// CUDA helper methods
+	void renderWithCuda(Scene& scene, bool raytracing);
 
 public:
 	void clearBuffers();
     const Buffer<uint32_t>& getBuffer() const { return framebuffer; }
 	void render(Scene scene);
 	void renderRayTracing(Scene scene);
+	
+	// CUDA methods
+	void enableCudaAcceleration(bool enable = true);
+	bool isCudaEnabled() const { return enableCuda; }
 
 	Renderer(int width, int height);
+	~Renderer(); // Add destructor declaration
 
 };

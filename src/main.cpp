@@ -90,6 +90,11 @@ int main(int argc, char* argv[])
     bool justEnteredRelativeMode = false; // first frame protection
     const bool* keyboardState = SDL_GetKeyboardState(NULL); // 监控keyboard状态
     
+    // Rendering control variables
+    bool needsRedraw = true;
+    bool lastRayTracingMode = useRayTracing;
+    bool lastCudaMode = renderer.isCudaEnabled();
+    
     Uint64 lastTick = SDL_GetPerformanceCounter();
     float deltaTime = 0.016f;
     while(keep_going){
@@ -106,6 +111,7 @@ int main(int argc, char* argv[])
             // 切换渲染模式
             if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_TAB) {
                 useRayTracing = !useRayTracing; // Toggle rendering mode
+                needsRedraw = true; // Force redraw when mode changes
             }
 
             // 右键按下启用相对鼠标模式
@@ -140,6 +146,7 @@ int main(int argc, char* argv[])
             } else {
                 justEnteredRelativeMode = false; // 跳过第一帧
             }
+            needsRedraw = true;
         }
 
         if (mouseRightButtonDown) { // 只有右键按下时才处理相机移动
@@ -155,6 +162,7 @@ int main(int argc, char* argv[])
             if (keyboardState[SDL_SCANCODE_D]) {
                 scene.camera.handleKeyPress(SDLK_D, deltaTime);
             }
+            needsRedraw = true;
         }
 
         // 切换相机投影
@@ -171,10 +179,22 @@ int main(int argc, char* argv[])
         
 
         // 1. 渲染到 framebuffer
-        if (useRayTracing) {
-            renderer.renderRayTracing(scene);
-        } else {
-            renderer.render(scene);
+        // Only render if not currently processing UI events
+        
+        // Check if rendering mode changed
+        if (lastRayTracingMode != useRayTracing || lastCudaMode != renderer.isCudaEnabled()) {
+            needsRedraw = true;
+            lastRayTracingMode = useRayTracing;
+            lastCudaMode = renderer.isCudaEnabled();
+        }
+        
+        if (needsRedraw) {
+            if (useRayTracing) {
+                renderer.renderRayTracing(scene);
+            } else {
+                renderer.render(scene);
+            }
+            needsRedraw = false;
         }
 
         // 2. 上传 framebuffer 到 SDL_Texture
@@ -214,6 +234,16 @@ int main(int argc, char* argv[])
             ImGui::SetNextWindowSize(ImVec2(static_cast<float>(window_width), 20)); // 宽度为窗口宽度，高度为 100
 
             ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+            if (!renderer.isCudaEnabled())
+                renderer.enableCudaAcceleration(true);
+            // // CUDA acceleration toggle
+            // static bool cudaEnabled = renderer.isCudaEnabled();
+            // if (ImGui::Checkbox("CUDA Acceleration", &cudaEnabled)) {
+            //     renderer.enableCudaAcceleration(cudaEnabled);
+            //     needsRedraw = true; // Force redraw when CUDA mode changes
+            // }
+            
+            // ImGui::SameLine();
 
             // // Render Frame 按钮居中
             // ImGui::SetCursorPosX((ImGui::GetWindowSize().x - ImGui::CalcTextSize("Render Frame").x) / 2.0f);

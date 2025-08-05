@@ -9,6 +9,16 @@
 #include "ResourceManager.h"
 #include "Scene.h"
 
+// CUDA includes
+#ifdef __CUDACC__
+#include "CudaRenderer.cuh"
+#else
+// Check if CUDA is available for linking
+#ifdef CUDA_ENABLED
+#include "CudaRenderer.cuh"
+#endif
+#endif
+
 
 //#include "Debug.h"
 //#define DEBUG_MODE
@@ -225,6 +235,13 @@ void Renderer::clip_triangle_against_near_plane(
 }
 
 void Renderer::render(Scene scene) {
+    if (enableCuda && cudaRenderer) {
+        // Use CUDA acceleration for rasterization
+        renderWithCuda(scene, false);
+        return;
+    }
+    
+    // Original CPU implementation
     clearBuffers();
     scene.camera.setAspect(static_cast<float>(screenWidth) / screenHeight);
     glm::mat4 projectionMatrix = scene.camera.getProjectionMatrix();
@@ -272,6 +289,13 @@ void Renderer::render(Scene scene) {
 }
 
 void Renderer::renderRayTracing(Scene scene) {
+    if (enableCuda && cudaRenderer) {
+        // Use CUDA acceleration for ray tracing
+        renderWithCuda(scene, true);
+        return;
+    }
+    
+    // Original CPU implementation
     clearBuffers();
     // save mode only!
     // if (firstFrameSaved){
@@ -506,4 +530,177 @@ Renderer::Renderer(int width, int height){
     framebuffer = Buffer<uint32_t>(width, height);
     zbuffer = Buffer<float>(width, height);
     clearBuffers();
+    
+    // Initialize CUDA renderer if available
+    cudaRenderer = nullptr;
+    try {
+#ifdef CUDA_ENABLED
+        cudaRenderer = new CudaRenderer();
+        static_cast<CudaRenderer*>(cudaRenderer)->initialize(width, height, 10000, 100, 10);
+        printf("CUDA renderer initialized successfully\n");
+#endif
+    } catch (const std::exception& e) {
+        printf("Failed to initialize CUDA renderer: %s\n", e.what());
+        if (cudaRenderer) {
+            delete static_cast<CudaRenderer*>(cudaRenderer);
+            cudaRenderer = nullptr;
+        }
+    }
 }
+
+void Renderer::enableCudaAcceleration(bool enable) {
+    if (enable && cudaRenderer) {
+        enableCuda = true;
+        printf("CUDA acceleration enabled\n");
+    } else {
+        enableCuda = false;
+        if (enable && !cudaRenderer) {
+            printf("CUDA acceleration requested but not available\n");
+        } else {
+            printf("CUDA acceleration disabled\n");
+        }
+    }
+}
+
+// Add destructor implementation
+Renderer::~Renderer() {
+#ifdef CUDA_ENABLED
+    if (cudaRenderer) {
+        delete static_cast<CudaRenderer*>(cudaRenderer);
+        cudaRenderer = nullptr;
+    }
+#endif
+}
+
+#ifdef CUDA_ENABLED
+void Renderer::renderWithCuda(Scene& scene, bool raytracing) {
+    if (!cudaRenderer) return;
+    
+    // clearBuffers(); // Temporarily commented out for testing
+    
+    // Convert scene data to CUDA format
+    std::vector<CudaTriangle> triangles;
+    std::vector<CudaMaterial> materials;
+    std::vector<CudaLight> lights;
+    CudaCamera camera;
+    
+    // Convert camera
+    camera.position = scene.camera.getPosition();
+    // Get proper camera vectors from the scene camera
+    camera.forward = glm::normalize(scene.camera.getTarget() - scene.camera.getPosition());
+    camera.up = scene.camera.getUp();
+    camera.right = glm::normalize(glm::cross(camera.forward, camera.up));
+    camera.fov = scene.camera.getFovY();
+    camera.aspect = scene.camera.getAspect();
+    camera.nearPlane = scene.camera.getNearClip();
+    camera.farPlane = scene.camera.getFarClip();
+    
+    // Convert lights
+    for (const auto& light : scene.lights) {
+        CudaLight cudaLight;
+        cudaLight.position = light->getPosition();
+        cudaLight.color = light->getColor();
+        cudaLight.intensity = light->intensity;
+        cudaLight.type = 0; // Assuming point light for now
+        lights.push_back(cudaLight);
+    }
+    
+    // Convert materials and geometry
+    int materialId = 0;
+    for (const auto& objectPtr : scene.objects) {
+        Object& object = *objectPtr;
+        Mesh& mesh = object.getMesh();
+        const std::vector<Vertex>& vertices = mesh.vertices;
+        const std::vector<unsigned int>& indices = mesh.indices;
+        auto material = object.getMaterial();
+        
+        // Add material
+        CudaMaterial cudaMat;
+        if (material) {
+            cudaMat.baseColor = material->baseColor;
+            cudaMat.metallic = material->metallic;
+            cudaMat.roughness = material->roughness;
+            cudaMat.transparency = material->transparency;
+            cudaMat.ior = material->ior;
+        } else {
+            cudaMat.baseColor = glm::vec3(0.8f);
+            cudaMat.metallic = 0.0f;
+            cudaMat.roughness = 0.5f;
+            cudaMat.transparency = 0.0f;
+            cudaMat.ior = 1.0f;
+        }
+        materials.push_back(cudaMat);
+        
+        // Transform vertices and create triangles
+        glm::mat4 modelMatrix = object.getMatrix();
+        glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
+        
+        for (size_t i = 0; i < indices.size(); i += 3) {
+            CudaTriangle tri;
+            
+            // Transform vertices to world space
+            glm::vec4 v0_world = modelMatrix * glm::vec4(vertices[indices[i]].localPos, 1.0f);
+            glm::vec4 v1_world = modelMatrix * glm::vec4(vertices[indices[i+1]].localPos, 1.0f);
+            glm::vec4 v2_world = modelMatrix * glm::vec4(vertices[indices[i+2]].localPos, 1.0f);
+            
+            tri.v0 = glm::vec3(v0_world);
+            tri.v1 = glm::vec3(v1_world);
+            tri.v2 = glm::vec3(v2_world);
+            
+            // Transform normals
+            tri.n0 = glm::normalize(normalMatrix * vertices[indices[i]].normal);
+            tri.n1 = glm::normalize(normalMatrix * vertices[indices[i+1]].normal);
+            tri.n2 = glm::normalize(normalMatrix * vertices[indices[i+2]].normal);
+            
+            // UV coordinates
+            tri.uv0 = vertices[indices[i]].uv;
+            tri.uv1 = vertices[indices[i+1]].uv;
+            tri.uv2 = vertices[indices[i+2]].uv;
+            
+            tri.materialId = materialId;
+            triangles.push_back(tri);
+        }
+        materialId++;
+    }
+    
+    if (raytracing) {
+        // Simple CUDA test pattern instead of ray tracing
+        // printf("CUDA Test: Rendering test pattern...\n");
+        // static_cast<CudaRenderer*>(cudaRenderer)->renderTestPattern(
+        //     framebuffer.pixels.data(), screenWidth, screenHeight
+        // );
+        static_cast<CudaRenderer*>(cudaRenderer)->renderRaytracing(
+            framebuffer.pixels.data(), screenWidth, screenHeight,
+            triangles.data(), static_cast<int>(triangles.size()),
+            materials.data(), static_cast<int>(materials.size()),
+            lights.data(), static_cast<int>(lights.size()),
+            camera, SAMPLES_PER_PIXEL, MAX_DEPTH
+        );
+    } else {
+        // Rasterization rendering
+        static_cast<CudaRenderer*>(cudaRenderer)->renderRasterization(
+            framebuffer.pixels.data(), const_cast<float*>(zbuffer.data()), screenWidth, screenHeight,
+            // Note: We need to implement vertex shader output conversion for rasterization
+            nullptr, nullptr, 0, // vertices, indices, triangleCount - need proper implementation
+            lights.data(), static_cast<int>(lights.size()),
+            materials.data(), camera
+        );
+        // TODO: Implement proper vertex shader output and geometry conversion for CUDA rasterization
+        printf("CUDA rasterization called but geometry conversion not yet implemented\n");
+    }
+}
+#else
+void Renderer::renderWithCuda(Scene& scene, bool raytracing) {
+    // CUDA not available, fall back to CPU
+    printf("CUDA not available, falling back to CPU rendering\n");
+    if (raytracing) {
+        enableCuda = false;
+        renderRayTracing(scene);
+        enableCuda = true;
+    } else {
+        enableCuda = false;
+        render(scene);
+        enableCuda = true;
+    }
+}
+#endif

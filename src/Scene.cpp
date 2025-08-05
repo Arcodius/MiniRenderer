@@ -313,7 +313,7 @@ void Scene::setup(){
     std::shared_ptr<Plane> leftWall = std::make_shared<Plane>(
         glm::vec3(-1.0f, 1.0f, 0.0f), // 左墙位置
         glm::vec3(1.0f, 0.0f, 0.0f), // 法线方向
-        mirrorMaterial
+        leftWallMaterial
     );
     leftWall->setScale(glm::vec3(1.f));
     addObject(leftWall);
@@ -373,7 +373,7 @@ void Scene::setup(){
     // 灯光（顶光）
     std::shared_ptr<PointLight> topLight = std::make_shared<PointLight>(
         glm::vec3(1.0f, 1.0f, 1.0f), // 灯光颜色
-        25.f, // 强度
+        1.f, // 强度
         glm::vec3(0.0f, 1.8f, 0.0f), // 灯光位置
         5.0f // 距离衰减
     );
