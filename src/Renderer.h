@@ -25,6 +25,15 @@ public:
 	int screenWidth, screenHeight;
 	Buffer<uint32_t> framebuffer;
 	Buffer<float> zbuffer;
+	
+	// Shadow mapping
+	static constexpr int SHADOW_MAP_SIZE = 256;
+	Buffer<float> shadowMap;
+	glm::mat4 lightViewMatrix;
+	glm::mat4 lightProjectionMatrix;
+	glm::mat4 lightViewProjectionMatrix;
+	bool lightMatricesValid = false;
+	glm::vec3 lastLightPosition = glm::vec3(0.0f);
 private:
 	// rasterization
 	glm::vec3 sampleTexture(const std::vector<uint32_t>& textureData, glm::vec2 uv, int texWidth, int texHeight);
@@ -33,6 +42,7 @@ private:
 
 	static std::vector<glm::vec3> clipToScreen(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, int screenWidth, int screenHeight);
 	glm::vec3 ndcToScreen(const glm::vec3& ndc) const;
+	glm::vec3 ndcToShadowMapScreen(const glm::vec3& ndc) const;
     void clip_triangle_against_near_plane(const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
         std::vector<std::array<VertexShaderOutput, 3>>& clipped_tris);
 	glm::vec3 _computePhongColor(const glm::vec3& pos, const glm::vec3& normal, const std::shared_ptr<Light>& light, const glm::vec3& cameraPos, const glm::vec3& baseColor);
@@ -41,6 +51,14 @@ private:
 		const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
         const glm::vec3& s0, const glm::vec3& s1, const glm::vec3& s2,
 		const std::vector<std::shared_ptr< Light >>& lights, const Camera& camera, std::shared_ptr<Material> material);
+
+	// Shadow mapping
+	void renderShadowMap(const Scene& scene, const std::shared_ptr<Light>& light);
+	void _drawTriangleDepthOnly(
+		const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
+		const glm::vec3& s0, const glm::vec3& s1, const glm::vec3& s2);
+	float sampleShadowMap(const glm::vec3& worldPos) const;
+	void setupLightMatrices(const std::shared_ptr<Light>& light);
 
 	// ray tracing
 	Ray computeReflectedRay(const Ray& ray, const Intersection& isect);

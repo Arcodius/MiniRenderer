@@ -16,6 +16,7 @@
 void Renderer::clearBuffers() {
 	framebuffer.clear(0xFF000000);
 	zbuffer.clear(std::numeric_limits<float>::max());  // Clear depth buffer to max depth
+	shadowMap.clear(std::numeric_limits<float>::max()); // Clear shadow map to max depth
 }
 // w is world position
 bool Renderer::_isBackFacingViewSpace(
@@ -128,13 +129,26 @@ void Renderer::_drawTrianglePhong(
                     glm::vec2 uv = (a * uv0_w + b * uv1_w + c * uv2_w) / invW;
                     glm::vec3 baseColor = material->sampleBaseColor(uv);
                     glm::vec3 color = glm::vec3(0.0f);
-                    for (const auto& light : lights) {
+                    
+                    // Shadow mapping - 只对第一个光源应用阴影
+                    float shadowFactor = 1.0f;
+                    if (!lights.empty()) {
+                        shadowFactor = sampleShadowMap(pos);
+                    }
+                    
+                    for (size_t lightIdx = 0; lightIdx < lights.size(); ++lightIdx) {
+                        const auto& light = lights[lightIdx];
                         if (light->getDistance(pos) < EPSILON) continue; // 避免光源距离过近
-                        // color += _computePhongColor(pos, normal, light, camera.getPosition(), baseColor);
-                        color += material->computePhong(
+                        
+                        glm::vec3 lightContribution = material->computePhong(
                             normal, uv, camera.getPosition() - pos, light->getDirection(pos), light->getColor());
-                        // color += material->computeBRDF(
-                        //     normal, uv, camera.getPosition() - pos, light->getDirection(pos), light->getColor());
+                        
+                        // 只对第一个光源应用阴影
+                        if (lightIdx == 0) {
+                            lightContribution *= shadowFactor;
+                        }
+                        
+                        color += lightContribution;
                     }
                     color = glm::clamp(color, 0.0f, 1.0f); // 确保颜色在 [0, 1] 范围内
                     framebuffer[idx] = Color::VecToUint32(color); // 映射 [-1,1] → [0,1]
@@ -226,6 +240,12 @@ void Renderer::clip_triangle_against_near_plane(
 
 void Renderer::render(Scene scene) {
     clearBuffers();
+    
+    // 首先渲染shadow map（只为第一个光源，可以扩展为多个）
+    if (!scene.lights.empty()) {
+        renderShadowMap(scene, scene.lights[0]);
+    }
+    
     scene.camera.setAspect(static_cast<float>(screenWidth) / screenHeight);
     glm::mat4 projectionMatrix = scene.camera.getProjectionMatrix();
     glm::mat4 viewMatrix = scene.camera.getViewMatrix();
@@ -500,10 +520,197 @@ float Renderer::computeSoftShadow(const glm::vec3& point, const Scene& scene, co
     return 1.0f - float(occludedSamples) / numSamples; // 返回未遮挡比例
 }
 
+void Renderer::setupLightMatrices(const std::shared_ptr<Light>& light) {
+    // 获取光源位置
+    glm::vec3 currentLightPos = light->getPosition();
+    
+    // 检查是否需要重新计算矩阵
+    if (lightMatricesValid && glm::distance(currentLightPos, lastLightPosition) < 0.001f) {
+        return; // 光源位置没有显著变化，不需要重新计算
+    }
+    
+    // 获取光源位置和方向
+    glm::vec3 lightPos;
+    glm::vec3 lightDir;
+    
+    if (auto dirLight = std::dynamic_pointer_cast<DirectionalLight>(light)) {
+        // 方向光：设置一个足够远的位置
+        lightDir = glm::normalize(dirLight->direction);
+        lightPos = -lightDir * 20.0f; // 减少距离，更好地覆盖场景
+        
+        // 正交投影适合方向光，调整投影范围以更好地覆盖场景
+        float orthoSize = 5.0f; // 减小投影范围以提高shadow map精度
+        lightProjectionMatrix = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, 0.1f, 50.0f);
+    } else if (auto pointLight = std::dynamic_pointer_cast<PointLight>(light)) {
+        // 点光源：使用透视投影，朝向场景中心
+        lightPos = pointLight->getPosition();
+        glm::vec3 sceneCenter = glm::vec3(0.0f, 1.0f, 0.0f); // 场景中心点
+        lightDir = glm::normalize(sceneCenter - lightPos); // 从光源指向场景中心
+        
+        // 调整FOV以更好地覆盖场景
+        lightProjectionMatrix = glm::perspective(glm::radians(120.0f), 1.0f, 0.1f, pointLight->range);
+    } else if (auto spotLight = std::dynamic_pointer_cast<SpotLight>(light)) {
+        // 聚光灯：使用透视投影
+        lightPos = spotLight->getPosition();
+        lightDir = spotLight->direction;
+        
+        float fov = spotLight->outerAngle * 2.0f; // 外角的两倍作为FOV
+        lightProjectionMatrix = glm::perspective(glm::radians(fov), 1.0f, 0.1f, spotLight->range);
+    } else {
+        // 默认设置
+        lightPos = glm::vec3(0.0f, 10.0f, 0.0f);
+        lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
+        lightProjectionMatrix = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 0.1f, 50.0f);
+    }
+    
+    // 计算view矩阵
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    if (glm::abs(glm::dot(lightDir, up)) > 0.9f) {
+        up = glm::vec3(1.0f, 0.0f, 0.0f); // 如果方向和up太接近，换个up向量
+    }
+    
+    lightViewMatrix = glm::lookAt(lightPos, lightPos + lightDir, up);
+    lightViewProjectionMatrix = lightProjectionMatrix * lightViewMatrix;
+    
+    // 更新状态
+    lastLightPosition = currentLightPos;
+    lightMatricesValid = true;
+}
+
+void Renderer::renderShadowMap(const Scene& scene, const std::shared_ptr<Light>& light) {
+    // 设置光源矩阵
+    setupLightMatrices(light);
+    
+    // 清空shadow map
+    shadowMap.clear(std::numeric_limits<float>::max());
+    
+    // 从光源视角渲染场景
+    for (const auto& objectPtr : scene.objects) {
+        Object& object = *objectPtr;
+        glm::mat4 modelMatrix = object.getMatrix();
+        glm::mat4 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
+        glm::mat4 mvp = lightViewProjectionMatrix * modelMatrix;
+
+        const Mesh& mesh = object.getMesh();
+        const std::vector<Vertex>& vertices = mesh.vertices;
+        const std::vector<unsigned int>& indices = mesh.indices;
+
+        for (size_t i = 0; i < indices.size(); i += 3) {
+            VertexShaderOutput v0 = vertexShader(vertices[indices[i]], modelMatrix, normalMatrix, mvp);
+            VertexShaderOutput v1 = vertexShader(vertices[indices[i+1]], modelMatrix, normalMatrix, mvp);
+            VertexShaderOutput v2 = vertexShader(vertices[indices[i+2]], modelMatrix, normalMatrix, mvp);
+
+            // 剪裁
+            std::vector<std::array<VertexShaderOutput, 3>> clippedTriangles;
+            clip_triangle_against_near_plane(v0, v1, v2, clippedTriangles);
+
+            for (const auto& tri : clippedTriangles) {
+                // 转换到shadow map的屏幕空间
+                glm::vec3 s0 = ndcToShadowMapScreen(tri[0].clipPos / tri[0].clipPos.w);
+                glm::vec3 s1 = ndcToShadowMapScreen(tri[1].clipPos / tri[1].clipPos.w);
+                glm::vec3 s2 = ndcToShadowMapScreen(tri[2].clipPos / tri[2].clipPos.w);
+
+                _drawTriangleDepthOnly(tri[0], tri[1], tri[2], s0, s1, s2);
+            }
+        }
+    }
+}
+
+void Renderer::_drawTriangleDepthOnly(
+    const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
+    const glm::vec3& s0, const glm::vec3& s1, const glm::vec3& s2) {
+    
+    float area = glm::cross(s1 - s0, s2 - s0).z;
+    if (fabs(area) < EPSILON) {
+        return; // 退化三角形
+    }
+    if (area < 0.0f) {
+        _drawTriangleDepthOnly(v0, v2, v1, s0, s2, s1);
+        return;
+    }
+
+    int minX = std::max(0, (int)std::floor(std::min({ s0.x, s1.x, s2.x })));
+    int maxX = std::min(SHADOW_MAP_SIZE - 1, (int)std::ceil(std::max({ s0.x, s1.x, s2.x })));
+    int minY = std::max(0, (int)std::floor(std::min({ s0.y, s1.y, s2.y })));
+    int maxY = std::min(SHADOW_MAP_SIZE - 1, (int)std::ceil(std::max({ s0.y, s1.y, s2.y })));
+
+    for (int y = minY; y <= maxY; ++y) {
+        for (int x = minX; x <= maxX; ++x) {
+            glm::vec3 p(x + 0.5f, y + 0.5f, 0.0f);
+            if (_insideTriangle(p, s0, s1, s2)) {
+                float a = (glm::cross(s1 - p, s2 - p)).z / area;
+                float b = (glm::cross(s2 - p, s0 - p)).z / area;
+                float c = (glm::cross(s0 - p, s1 - p)).z / area;
+
+                float z = a * s0.z + b * s1.z + c * s2.z;
+                int idx = y * SHADOW_MAP_SIZE + x;
+                
+                if (z < shadowMap[idx]) {
+                    shadowMap[idx] = z;
+                }
+            }
+        }
+    }
+}
+
+glm::vec3 Renderer::ndcToShadowMapScreen(const glm::vec3& ndc) const {
+    float x = (ndc.x + 1.0f) * 0.5f * SHADOW_MAP_SIZE;
+    float y = (1.0f - ndc.y) * 0.5f * SHADOW_MAP_SIZE;
+    float z = (ndc.z + 1.0f) * 0.5f;
+    return glm::vec3(x, y, z);
+}
+
+float Renderer::sampleShadowMap(const glm::vec3& worldPos) const {
+    // 将世界坐标转换到光源空间
+    glm::vec4 lightSpacePos = lightViewProjectionMatrix * glm::vec4(worldPos, 1.0f);
+    
+    // 透视除法
+    glm::vec3 projCoords = glm::vec3(lightSpacePos) / lightSpacePos.w;
+    
+    // 转换到[0,1]范围
+    projCoords = projCoords * 0.5f + 0.5f;
+    
+    // 检查是否在shadow map范围内
+    if (projCoords.x < 0.0f || projCoords.x > 1.0f || 
+        projCoords.y < 0.0f || projCoords.y > 1.0f ||
+        projCoords.z > 1.0f) {
+        return 1.0f; // 在范围外，不在阴影中
+    }
+    
+    // 采样shadow map
+    int x = (int)(projCoords.x * (SHADOW_MAP_SIZE - 1));
+    int y = (int)(projCoords.y * (SHADOW_MAP_SIZE - 1));
+    
+    // 边界检查
+    if (x < 0 || x >= SHADOW_MAP_SIZE || y < 0 || y >= SHADOW_MAP_SIZE) {
+        return 1.0f;
+    }
+    
+    float closestDepth = shadowMap[y * SHADOW_MAP_SIZE + x];
+    
+    // 当前片段在光源空间的深度
+    float currentDepth = projCoords.z;
+    
+    // 自适应阴影偏移，基于深度梯度
+    float bias = 0.001f; // 基础bias
+    float maxBias = 0.01f;
+    
+    // 如果深度很近最大值，说明这个区域没有被渲染到shadow map中
+    if (closestDepth >= 0.999f) {
+        return 1.0f; // 不在阴影中
+    }
+    
+    // 阴影测试，使用自适应bias
+    return (currentDepth - bias) > closestDepth ? 0.0f : 1.0f;
+}
+
 Renderer::Renderer(int width, int height){
     screenWidth = width;
     screenHeight = height;
     framebuffer = Buffer<uint32_t>(width, height);
     zbuffer = Buffer<float>(width, height);
+    shadowMap = Buffer<float>(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+    lightMatricesValid = false;
+    lastLightPosition = glm::vec3(0.0f);
     clearBuffers();
 }
