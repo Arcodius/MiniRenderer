@@ -26,6 +26,21 @@ public:
 	Buffer<uint32_t> framebuffer;
 	Buffer<float> zbuffer;
 	
+	// G-Buffer for SSAO/SSGI
+	Buffer<glm::vec3> gBufferPosition;  // World position
+	Buffer<glm::vec3> gBufferNormal;    // World normal
+	Buffer<glm::vec3> gBufferAlbedo;    // Base color
+	Buffer<uint32_t> gBufferColor;      // Direct lighting result
+	
+	// SSAO/SSGI settings
+	static constexpr int SSAO_SAMPLES = 16;
+	static constexpr float SSAO_RADIUS = 0.1f;
+	static constexpr float SSAO_BIAS = 0.005f;
+	static constexpr int SSGI_SAMPLES = 16;
+	static constexpr float SSGI_RADIUS = 1.0f;
+	std::vector<glm::vec3> ssaoKernel;
+	std::vector<glm::vec3> ssaoNoise;
+	
 	// Shadow mapping
 	static constexpr int SHADOW_MAP_SIZE = 256;
 	Buffer<float> shadowMap;
@@ -60,6 +75,19 @@ private:
 	float sampleShadowMap(const glm::vec3& worldPos) const;
 	void setupLightMatrices(const std::shared_ptr<Light>& light);
 
+	// SSAO/SSGI
+	void generateSSAOKernel();
+	void generateSSAONoise();
+	void renderGBuffer(Scene scene);
+	void _drawTriangleGBuffer(
+		const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
+		const glm::vec3& s0, const glm::vec3& s1, const glm::vec3& s2,
+		std::shared_ptr<Material> material);
+	float computeSSAO(int x, int y, Camera& camera);
+	glm::vec3 computeSSGI(int x, int y, Camera& camera);
+	glm::vec3 getRandomVector(int x, int y);
+	glm::vec3 screenToWorldPosition(float x, float y, float depth, const glm::mat4& invViewProjMatrix);
+	
 	// ray tracing
 	Ray computeReflectedRay(const Ray& ray, const Intersection& isect);
 	Ray computeRefractedRay(const Ray& ray, const Intersection& isect);
@@ -73,6 +101,7 @@ public:
 	void clearBuffers();
     const Buffer<uint32_t>& getBuffer() const { return framebuffer; }
 	void render(Scene scene);
+	void renderWithSSAO(Scene scene);  // New method with SSAO/SSGI
 	void renderRayTracing(Scene scene);
 
 	Renderer(int width, int height);

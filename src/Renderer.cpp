@@ -2,6 +2,7 @@
 
 #include <array>   // Include <array> for std::array usage
 #include <typeinfo>
+#include <random>  // For SSAO/SSGI random sampling
 #include "Color.h"
 #include "Intersection.h"
 #include "Material.h"
@@ -17,6 +18,12 @@ void Renderer::clearBuffers() {
 	framebuffer.clear(0xFF000000);
 	zbuffer.clear(std::numeric_limits<float>::max());  // Clear depth buffer to max depth
 	shadowMap.clear(std::numeric_limits<float>::max()); // Clear shadow map to max depth
+	
+	// Clear G-Buffer
+	gBufferPosition.clear(glm::vec3(0.0f));
+	gBufferNormal.clear(glm::vec3(0.0f));
+	gBufferAlbedo.clear(glm::vec3(0.0f));
+	gBufferColor.clear(0xFF000000);
 }
 // w is world position
 bool Renderer::_isBackFacingViewSpace(
@@ -710,7 +717,385 @@ Renderer::Renderer(int width, int height){
     framebuffer = Buffer<uint32_t>(width, height);
     zbuffer = Buffer<float>(width, height);
     shadowMap = Buffer<float>(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+    
+    // Initialize G-Buffer
+    gBufferPosition = Buffer<glm::vec3>(width, height);
+    gBufferNormal = Buffer<glm::vec3>(width, height);
+    gBufferAlbedo = Buffer<glm::vec3>(width, height);
+    gBufferColor = Buffer<uint32_t>(width, height);
+    
+    // Initialize SSAO/SSGI
+    generateSSAOKernel();
+    generateSSAONoise();
+    
     lightMatricesValid = false;
     lastLightPosition = glm::vec3(0.0f);
     clearBuffers();
+}
+
+// SSAO/SSGI Implementation
+void Renderer::generateSSAOKernel() {
+    ssaoKernel.clear();
+    ssaoKernel.reserve(SSAO_SAMPLES);
+    
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    
+    for (int i = 0; i < SSAO_SAMPLES; ++i) {
+        glm::vec3 sample(
+            dis(gen) * 2.0f - 1.0f,
+            dis(gen) * 2.0f - 1.0f,
+            dis(gen)
+        );
+        sample = glm::normalize(sample);
+        sample *= dis(gen);
+        
+        // Scale samples to be more aligned to center
+        float scale = float(i) / float(SSAO_SAMPLES);
+        scale = glm::mix(0.1f, 1.0f, scale * scale);
+        sample *= scale;
+        
+        ssaoKernel.push_back(sample);
+    }
+}
+
+void Renderer::generateSSAONoise() {
+    ssaoNoise.clear();
+    ssaoNoise.reserve(16); // 4x4 noise texture
+    
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    
+    for (int i = 0; i < 16; ++i) {
+        glm::vec3 noise(
+            dis(gen) * 2.0f - 1.0f,
+            dis(gen) * 2.0f - 1.0f,
+            0.0f
+        );
+        ssaoNoise.push_back(noise);
+    }
+}
+
+void Renderer::renderGBuffer(Scene scene) {
+    // Clear G-Buffer
+    gBufferPosition.clear(glm::vec3(0.0f));
+    gBufferNormal.clear(glm::vec3(0.0f));
+    gBufferAlbedo.clear(glm::vec3(0.0f));
+    gBufferColor.clear(0xFF000000);
+    
+    scene.camera.setAspect(static_cast<float>(screenWidth) / screenHeight);
+    glm::mat4 projectionMatrix = scene.camera.getProjectionMatrix();
+    glm::mat4 viewMatrix = scene.camera.getViewMatrix();
+    glm::mat4 viewProjectionMatrix = projectionMatrix * viewMatrix;
+    
+    for (const auto& objectPtr : scene.objects) {
+        Object& object = *objectPtr;
+        glm::mat4 modelMatrix = object.getMatrix();
+        glm::mat4 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
+        glm::mat4 mvp = viewProjectionMatrix * modelMatrix;
+
+        const Mesh& mesh = object.getMesh();
+        const std::vector<Vertex>& vertices = mesh.vertices;
+        const std::vector<unsigned int>& indices = mesh.indices;
+
+        for (size_t i = 0; i < indices.size(); i += 3) {
+            VertexShaderOutput v0 = vertexShader(vertices[indices[i]], modelMatrix, normalMatrix, mvp);
+            VertexShaderOutput v1 = vertexShader(vertices[indices[i+1]], modelMatrix, normalMatrix, mvp);
+            VertexShaderOutput v2 = vertexShader(vertices[indices[i+2]], modelMatrix, normalMatrix, mvp);
+
+            std::vector<std::array<VertexShaderOutput, 3>> clippedTriangles;
+            clip_triangle_against_near_plane(v0, v1, v2, clippedTriangles);
+
+            for (const auto& tri : clippedTriangles) {
+                glm::vec3 s0 = ndcToScreen(tri[0].clipPos / tri[0].clipPos.w);
+                glm::vec3 s1 = ndcToScreen(tri[1].clipPos / tri[1].clipPos.w);
+                glm::vec3 s2 = ndcToScreen(tri[2].clipPos / tri[2].clipPos.w);
+
+                _drawTriangleGBuffer(tri[0], tri[1], tri[2], s0, s1, s2, object.getMaterial());
+            }
+        }
+    }
+}
+
+void Renderer::_drawTriangleGBuffer(
+    const VertexShaderOutput& v0, const VertexShaderOutput& v1, const VertexShaderOutput& v2,
+    const glm::vec3& s0, const glm::vec3& s1, const glm::vec3& s2,
+    std::shared_ptr<Material> material) {
+    
+    float area = glm::cross(s1 - s0, s2 - s0).z;
+    if (fabs(area) < EPSILON) return;
+    if (area < 0.0f) {
+        _drawTriangleGBuffer(v0, v2, v1, s0, s2, s1, material);
+        return;
+    }
+    
+    float invW0 = 1.0f / v0.w;
+    float invW1 = 1.0f / v1.w;
+    float invW2 = 1.0f / v2.w;
+    glm::vec2 uv0_w = v0.uv * invW0;
+    glm::vec2 uv1_w = v1.uv * invW1;
+    glm::vec2 uv2_w = v2.uv * invW2;
+    glm::vec3 n0_w = v0.normal * invW0;
+    glm::vec3 n1_w = v1.normal * invW1;
+    glm::vec3 n2_w = v2.normal * invW2;
+
+    int minX = std::max(0, (int)std::floor(std::min({ s0.x, s1.x, s2.x })));
+    int maxX = std::min(screenWidth - 1, (int)std::ceil(std::max({ s0.x, s1.x, s2.x })));
+    int minY = std::max(0, (int)std::floor(std::min({ s0.y, s1.y, s2.y })));
+    int maxY = std::min(screenHeight - 1, (int)std::ceil(std::max({ s0.y, s1.y, s2.y })));
+
+    for (int y = minY; y <= maxY; ++y) {
+        for (int x = minX; x <= maxX; ++x) {
+            glm::vec3 p(x + 0.5f, y + 0.5f, 0.0f);
+            if (_insideTriangle(p, s0, s1, s2)) {
+                float a = (glm::cross(s1 - p, s2 - p)).z / area;
+                float b = (glm::cross(s2 - p, s0 - p)).z / area;
+                float c = (glm::cross(s0 - p, s1 - p)).z / area;
+
+                float z = a * s0.z + b * s1.z + c * s2.z;
+                int idx = y * screenWidth + x;
+                
+                if (z < zbuffer[idx]) {
+                    zbuffer[idx] = z;
+                    
+                    // Store G-Buffer data
+                    glm::vec3 worldPos = v0.worldPos * a + v1.worldPos * b + v2.worldPos * c;
+                    glm::vec3 normal = glm::normalize(n0_w * a + n1_w * b + n2_w * c);
+                    
+                    float invW = a * invW0 + b * invW1 + c * invW2;
+                    glm::vec2 uv = (a * uv0_w + b * uv1_w + c * uv2_w) / invW;
+                    glm::vec3 albedo = material->sampleBaseColor(uv);
+                    
+                    gBufferPosition[idx] = worldPos;
+                    gBufferNormal[idx] = normal;
+                    gBufferAlbedo[idx] = albedo;
+                }
+            }
+        }
+    }
+}
+
+float Renderer::computeSSAO(int x, int y, Camera& camera) {
+    // [优化] 将所有不变的计算移到函数顶部
+    const glm::mat4 viewMatrix = camera.getViewMatrix();
+    const glm::mat4 projMatrix = camera.getProjectionMatrix();
+
+    int idx = y * screenWidth + x;
+    
+    // 从 G-Buffer 获取世界空间数据
+    const glm::vec3 fragPos_world = gBufferPosition[idx];
+    const glm::vec3 normal_world = gBufferNormal[idx];
+    
+    if (glm::length(normal_world) < EPSILON) {
+        return 1.0f; // No geometry, no occlusion
+    }
+
+    // [修正] 将原始片段的位置和法线转换到视图空间
+    const glm::vec3 fragPos_view = glm::vec3(viewMatrix * glm::vec4(fragPos_world, 1.0));
+    const glm::vec3 normal_view = glm::normalize(glm::mat3(viewMatrix) * normal_world);
+    
+    // 在视图空间中创建 TBN 矩阵，这样就不用在循环里反复转换了
+    glm::vec3 randomVec = getRandomVector(x, y); // 假设 randomVec 在 [0,1] 范围
+    glm::vec3 tangent_view = glm::normalize(randomVec - normal_view * glm::dot(randomVec, normal_view));
+    glm::vec3 bitangent_view = glm::cross(normal_view, tangent_view);
+    glm::mat3 TBN_view = glm::mat3(tangent_view, bitangent_view, normal_view);
+    
+    float occlusion = 0.0f;
+    for (int i = 0; i < SSAO_SAMPLES; ++i) {
+        // [修正] 在视图空间中生成采样点
+        // ssaoKernel[i] 是在切线空间中定义的，Z朝上
+        glm::vec3 samplePos_tangent = ssaoKernel[i];
+        glm::vec3 samplePos_view = TBN_view * samplePos_tangent;
+        samplePos_view = fragPos_view + samplePos_view * SSAO_RADIUS;
+        
+        // [修正] 将视图空间的采样点投影到屏幕空间
+        glm::vec4 offset_clip = projMatrix * glm::vec4(samplePos_view, 1.0f);
+        glm::vec3 offset_ndc = glm::vec3(offset_clip) / offset_clip.w;
+        glm::vec2 sample_uv = glm::vec2(offset_ndc.x, offset_ndc.y) * 0.5f + 0.5f;
+        
+        // 采样深度
+        if (sample_uv.x >= 0.0f && sample_uv.x <= 1.0f && sample_uv.y >= 0.0f && sample_uv.y <= 1.0f) {
+            int sampleX = static_cast<int>(sample_uv.x * screenWidth);
+            int sampleY = static_cast<int>((1.f - sample_uv.y) * screenHeight);
+            
+            int sampleIdx = sampleY * screenWidth + sampleX;
+            glm::vec3 occluderPos_world = gBufferPosition[sampleIdx];
+            
+            // [修正] 将采样的遮挡点也转换到视图空间
+            glm::vec3 occluderPos_view = glm::vec3(viewMatrix * glm::vec4(occluderPos_world, 1.0));
+
+            // [修正] 在视图空间 Z 轴上进行深度比较
+            // occluderPos_view.z 是G-Buffer中记录的实际场景深度
+            // samplePos_view.z 是我们采样点的深度
+            // 在右手坐标系（OpenGL默认）中，Z值更小代表离相机更近，所以用 >
+            // 如果是左手坐标系（DirectX默认），则用 <
+            if (occluderPos_view.z > samplePos_view.z + SSAO_BIAS) {
+                // 为了防止背景或远处的物体对近处物体造成错误遮挡，可以加一个范围检查
+                float rangeCheck = (glm::abs(fragPos_view.z - occluderPos_view.z) < SSAO_RADIUS) ? 1.0f : 0.0f;
+                occlusion += rangeCheck;
+            }
+        }
+    }
+    
+    occlusion = 1.0f - (occlusion / SSAO_SAMPLES);
+    return occlusion;
+}
+glm::vec3 Renderer::computeSSGI(int x, int y, Camera& camera) {
+    int idx = y * screenWidth + x;
+    
+    glm::vec3 fragPos = gBufferPosition[idx];
+    glm::vec3 normal = gBufferNormal[idx];
+    
+    if (glm::length(normal) < EPSILON) {
+        return glm::vec3(0.0f);
+    }
+    
+    glm::vec3 indirectLight(0.0f);
+    glm::vec3 randomVec = getRandomVector(x, y);
+    glm::vec3 tangent = glm::normalize(randomVec - normal * glm::dot(randomVec, normal));
+    glm::vec3 bitangent = glm::cross(normal, tangent);
+    glm::mat3 TBN = glm::mat3(tangent, bitangent, normal);
+    
+    for (int i = 0; i < SSGI_SAMPLES; ++i) {
+        glm::vec3 sampleDir = TBN * ssaoKernel[i % SSAO_SAMPLES];
+        glm::vec3 samplePos = fragPos + sampleDir * SSGI_RADIUS;
+        
+        // Project to screen space
+        glm::mat4 viewMatrix = camera.getViewMatrix();
+        glm::mat4 projMatrix = camera.getProjectionMatrix();
+        glm::mat4 viewProjMatrix = projMatrix * viewMatrix;
+        
+        glm::vec4 offset = viewProjMatrix * glm::vec4(samplePos, 1.0f);
+        glm::vec3 offsetXYZ = glm::vec3(offset) / offset.w;
+        offsetXYZ = offsetXYZ * 0.5f + 0.5f;
+        
+        if (offsetXYZ.x >= 0.0f && offsetXYZ.x < 1.0f && offsetXYZ.y >= 0.0f && offsetXYZ.y < 1.0f) {
+            int sampleX = (int)(offsetXYZ.x * screenWidth);
+            int sampleY = (int)((1.0f - offsetXYZ.y) * screenHeight);
+            if (sampleX >= 0 && sampleX < screenWidth && sampleY >= 0 && sampleY < screenHeight) {
+                int sampleIdx = sampleY * screenWidth + sampleX;
+                
+                // Sample the lighting information
+                glm::vec3 sampleAlbedo = gBufferAlbedo[sampleIdx];
+                glm::vec3 sampleNormal = gBufferNormal[sampleIdx];
+                
+                if (glm::length(sampleNormal) > EPSILON) {
+                    float NdotL = glm::max(0.0f, glm::dot(normal, sampleDir));
+                    float distance = glm::length(samplePos - fragPos);
+                    float attenuation = 1.0f / (1.0f + distance * distance);
+                    
+                    indirectLight += sampleAlbedo * NdotL * attenuation;
+                }
+            }
+        }
+    }
+    
+    return indirectLight / float(SSGI_SAMPLES);
+}
+
+glm::vec3 Renderer::getRandomVector(int x, int y) {
+    int noiseX = x % 4;
+    int noiseY = y % 4;
+    return ssaoNoise[noiseY * 4 + noiseX];
+}
+
+glm::vec3 Renderer::screenToWorldPosition(float x, float y, float depth, const glm::mat4& invViewProjMatrix) {
+    glm::vec4 clipSpacePos = glm::vec4(
+        (x / screenWidth) * 2.0f - 1.0f,
+        1.0f - (y / screenHeight) * 2.0f,
+        depth * 2.0f - 1.0f,
+        1.0f
+    );
+    
+    glm::vec4 worldSpacePos = invViewProjMatrix * clipSpacePos;
+    return glm::vec3(worldSpacePos) / worldSpacePos.w;
+}
+
+void Renderer::renderWithSSAO(Scene scene) {
+    clearBuffers();
+    
+    // First pass: Render shadow map
+    if (!scene.lights.empty()) {
+        renderShadowMap(scene, scene.lights[0]);
+    }
+    
+    // Second pass: Render G-Buffer
+    renderGBuffer(scene);
+    
+    // Third pass: Direct lighting with G-Buffer data
+    scene.camera.setAspect(static_cast<float>(screenWidth) / screenHeight);
+    glm::mat4 projectionMatrix = scene.camera.getProjectionMatrix();
+    glm::mat4 viewMatrix = scene.camera.getViewMatrix();
+    glm::mat4 viewProjectionMatrix = projectionMatrix * viewMatrix;
+    
+    for (const auto& objectPtr : scene.objects) {
+        Object& object = *objectPtr;
+        glm::mat4 modelMatrix = object.getMatrix();
+        glm::mat4 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
+        glm::mat4 mvp = viewProjectionMatrix * modelMatrix;
+
+        const Mesh& mesh = object.getMesh();
+        const std::vector<Vertex>& vertices = mesh.vertices;
+        const std::vector<unsigned int>& indices = mesh.indices;
+
+        for (size_t i = 0; i < indices.size(); i += 3) {
+            VertexShaderOutput v0 = vertexShader(vertices[indices[i]], modelMatrix, normalMatrix, mvp);
+            VertexShaderOutput v1 = vertexShader(vertices[indices[i+1]], modelMatrix, normalMatrix, mvp);
+            VertexShaderOutput v2 = vertexShader(vertices[indices[i+2]], modelMatrix, normalMatrix, mvp);
+
+            std::vector<std::array<VertexShaderOutput, 3>> clippedTriangles;
+            clip_triangle_against_near_plane(v0, v1, v2, clippedTriangles);
+
+            for (const auto& tri : clippedTriangles) {
+                glm::vec3 s0 = ndcToScreen(tri[0].clipPos / tri[0].clipPos.w);
+                glm::vec3 s1 = ndcToScreen(tri[1].clipPos / tri[1].clipPos.w);
+                glm::vec3 s2 = ndcToScreen(tri[2].clipPos / tri[2].clipPos.w);
+
+                _drawTrianglePhong(tri[0], tri[1], tri[2], s0, s1, s2, scene.lights, scene.camera, object.getMaterial());
+            }
+        }
+    }
+    
+    // Fourth pass: Apply SSAO and SSGI
+    for (int y = 0; y < screenHeight; ++y) {
+        for (int x = 0; x < screenWidth; ++x) {
+            int idx = y * screenWidth + x;
+            
+            // Skip pixels with no geometry
+            if (glm::length(gBufferNormal[idx]) < EPSILON) {
+                continue;
+            }
+            
+            
+            // Compute SSGI
+            glm::vec3 indirectLight = computeSSGI(x, y, scene.camera);
+            
+            // Get current pixel color
+            glm::vec3 directLight = Color::Uint32ToVec(framebuffer[idx]);
+            
+            // Apply ambient occlusion to ambient lighting
+            float aofactor = computeSSAO(x, y, scene.camera);
+            glm::vec3 ambient = gBufferAlbedo[idx] * 0.1f * aofactor;
+            
+            // Combine direct lighting, ambient with AO, and indirect lighting
+            glm::vec3 finalColor = directLight + ambient + indirectLight * 0.5f;
+            finalColor = glm::clamp(finalColor, 0.0f, 1.0f);
+            
+            framebuffer[idx] = Color::VecToUint32(glm::vec3(finalColor));
+            // glm::vec3 gcolor = gBufferPosition[idx] * 0.5f + 0.5f;
+            // framebuffer[idx] = Color::VecToUint32(gcolor);
+        }
+    }
+    
+    // Gamma correction (same as original)
+    for (int i = 0; i < framebuffer.width * framebuffer.height; ++i) {
+        uint32_t color = framebuffer[i];
+        glm::vec3 linearColor = Color::Uint32ToVec(color);
+        linearColor.r = glm::pow(linearColor.r, 1.0f / 2.2f);
+        linearColor.g = glm::pow(linearColor.g, 1.0f / 2.2f);
+        linearColor.b = glm::pow(linearColor.b, 1.0f / 2.2f);
+        framebuffer[i] = Color::VecToUint32(linearColor);
+    }
 }

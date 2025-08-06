@@ -87,6 +87,7 @@ int main(int argc, char* argv[])
     bool keep_going = true;
     bool mouseRightButtonDown = false;
     bool useRayTracing = false; // 是否使用光线追踪渲染
+    bool useGI = true;
     bool justEnteredRelativeMode = false; // first frame protection
     const bool* keyboardState = SDL_GetKeyboardState(NULL); // 监控keyboard状态
     
@@ -106,6 +107,10 @@ int main(int argc, char* argv[])
             // 切换渲染模式
             if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_TAB) {
                 useRayTracing = !useRayTracing; // Toggle rendering mode
+            }
+
+            if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_O) {
+                useGI = !useGI;
             }
 
             // 右键按下启用相对鼠标模式
@@ -174,7 +179,10 @@ int main(int argc, char* argv[])
         if (useRayTracing) {
             renderer.renderRayTracing(scene);
         } else {
-            renderer.render(scene);
+            if (!useGI)
+                renderer.render(scene);
+            else
+                renderer.renderWithSSAO(scene);
         }
 
         // 2. 上传 framebuffer 到 SDL_Texture
