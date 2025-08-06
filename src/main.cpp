@@ -219,27 +219,38 @@ int main(int argc, char* argv[])
         {
             // 设置 UI 窗口位置和大小
             ImGui::SetNextWindowPos(ImVec2(0, 0)); // 窗口顶端
-            ImGui::SetNextWindowSize(ImVec2(static_cast<float>(window_width), 20)); // 宽度为窗口宽度，高度为 100
+            ImGui::SetNextWindowSize(ImVec2(static_cast<float>(window_width), 120)); // 增加高度以容纳滑块
 
             ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
-            // // Render Frame 按钮居中
-            // ImGui::SetCursorPosX((ImGui::GetWindowSize().x - ImGui::CalcTextSize("Render Frame").x) / 2.0f);
-            // if (ImGui::Button("Render Frame")) {
-            //     if (!useRayTracing) { // not rendered
-            //         printf("Begin ray tracing...\n");
-            //         renderer.clearBuffers();
-            //         renderer.renderRayTracing(scene);
-            //         printf("Ray tracing finished.\n");
-            //     }
-            //     const Buffer<uint32_t>& buffer = renderer.getBuffer();
-            //     ResourceManager::saveFramebufferToBMP("ray_tracing_output.bmp", renderer.getBuffer());
-            // }
-
-            // 相机位置显示在右上角
-            ImGui::SetCursorPos(ImVec2(ImGui::GetWindowSize().x - 200, 10)); // 偏移到右上角
-            ImGui::Text("Camera Pos: (%.2f, %.2f, %.2f)", 
+            // 第一行：渲染模式和相机位置
+            ImGui::Text("Rendering Mode: %s | GI: %s", 
+                useRayTracing ? "Ray Tracing" : "Rasterization",
+                useGI ? "ON" : "OFF");
+            
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(ImGui::GetWindowSize().x - 250); // 偏移到右边
+            ImGui::Text("Camera: (%.2f, %.2f, %.2f)", 
                 scene.camera.getPosition().x, scene.camera.getPosition().y, scene.camera.getPosition().z);
+
+            // 第二行：光照强度控制（只在使用GI模式下显示）
+            if (useGI && !useRayTracing) {
+                ImGui::Separator();
+                ImGui::Text("Lighting Controls:");
+                
+                // 分为两行显示滑块
+                ImGui::Columns(2, "LightingControls", false);
+                
+                ImGui::SliderFloat("Direct Light", &renderer.directLightIntensity, 0.0f, 2.0f, "%.2f");
+                ImGui::SliderFloat("SSAO", &renderer.ssaoIntensity, 0.0f, 2.0f, "%.2f");
+                
+                ImGui::NextColumn();
+                
+                ImGui::SliderFloat("SSGI", &renderer.ssgiIntensity, 0.0f, 1.0f, "%.2f");
+                ImGui::SliderFloat("Ambient", &renderer.ambientIntensity, 0.0f, 0.5f, "%.3f");
+                
+                ImGui::Columns(1); // 恢复单列
+            }
 
             ImGui::End();
         }

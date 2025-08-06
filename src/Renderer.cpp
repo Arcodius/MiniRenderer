@@ -1025,36 +1025,53 @@ void Renderer::renderWithSSAO(Scene scene) {
     renderGBuffer(scene);
     
     // Third pass: Direct lighting with G-Buffer data
-    scene.camera.setAspect(static_cast<float>(screenWidth) / screenHeight);
-    glm::mat4 projectionMatrix = scene.camera.getProjectionMatrix();
-    glm::mat4 viewMatrix = scene.camera.getViewMatrix();
-    glm::mat4 viewProjectionMatrix = projectionMatrix * viewMatrix;
-    
-    for (const auto& objectPtr : scene.objects) {
-        Object& object = *objectPtr;
-        glm::mat4 modelMatrix = object.getMatrix();
-        glm::mat4 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
-        glm::mat4 mvp = viewProjectionMatrix * modelMatrix;
-
-        const Mesh& mesh = object.getMesh();
-        const std::vector<Vertex>& vertices = mesh.vertices;
-        const std::vector<unsigned int>& indices = mesh.indices;
-
-        for (size_t i = 0; i < indices.size(); i += 3) {
-            VertexShaderOutput v0 = vertexShader(vertices[indices[i]], modelMatrix, normalMatrix, mvp);
-            VertexShaderOutput v1 = vertexShader(vertices[indices[i+1]], modelMatrix, normalMatrix, mvp);
-            VertexShaderOutput v2 = vertexShader(vertices[indices[i+2]], modelMatrix, normalMatrix, mvp);
-
-            std::vector<std::array<VertexShaderOutput, 3>> clippedTriangles;
-            clip_triangle_against_near_plane(v0, v1, v2, clippedTriangles);
-
-            for (const auto& tri : clippedTriangles) {
-                glm::vec3 s0 = ndcToScreen(tri[0].clipPos / tri[0].clipPos.w);
-                glm::vec3 s1 = ndcToScreen(tri[1].clipPos / tri[1].clipPos.w);
-                glm::vec3 s2 = ndcToScreen(tri[2].clipPos / tri[2].clipPos.w);
-
-                _drawTrianglePhong(tri[0], tri[1], tri[2], s0, s1, s2, scene.lights, scene.camera, object.getMaterial());
+    // Instead of re-rendering geometry, compute lighting directly from G-Buffer
+    for (int y = 0; y < screenHeight; ++y) {
+        for (int x = 0; x < screenWidth; ++x) {
+            int idx = y * screenWidth + x;
+            
+            // Skip pixels with no geometry
+            if (glm::length(gBufferNormal[idx]) < EPSILON) {
+                continue;
             }
+            
+            glm::vec3 worldPos = gBufferPosition[idx];
+            glm::vec3 normal = gBufferNormal[idx];
+            glm::vec3 albedo = gBufferAlbedo[idx];
+            
+            glm::vec3 directLight(0.0f);
+            
+            // Compute direct lighting for each light
+            for (const auto& light : scene.lights) {
+                if (light->getDistance(worldPos) < EPSILON) continue;
+                
+                glm::vec3 lightDir = light->getDirection(worldPos);
+                glm::vec3 viewDir = glm::normalize(scene.camera.getPosition() - worldPos);
+                glm::vec3 lightColor = light->getColor() * light->getIntensity(worldPos);
+                
+                // Apply shadow
+                float shadowFactor = 1.0f;
+                if (!scene.lights.empty()) {
+                    shadowFactor = sampleShadowMap(worldPos);
+                }
+                
+                // Compute Phong shading
+                glm::vec3 L = lightDir;
+                glm::vec3 N = glm::normalize(normal);
+                glm::vec3 V = viewDir;
+                glm::vec3 R = glm::normalize(2.0f * glm::dot(N, L) * N - L);
+
+                float diff = glm::max(0.0f, glm::dot(N, L));
+                float spec = std::pow(glm::max(0.0f, glm::dot(R, V)), 16.0f);
+
+                glm::vec3 diffuse = diff * albedo;
+                glm::vec3 specular = spec * glm::vec3(1.0f, 1.0f, 1.0f);
+
+                directLight += (diffuse + specular) * lightColor * shadowFactor;
+            }
+            
+            directLight = glm::clamp(directLight, 0.0f, 1.0f);
+            framebuffer[idx] = Color::VecToUint32(directLight);
         }
     }
     
@@ -1068,24 +1085,22 @@ void Renderer::renderWithSSAO(Scene scene) {
                 continue;
             }
             
-            
             // Compute SSGI
             glm::vec3 indirectLight = computeSSGI(x, y, scene.camera);
             
-            // Get current pixel color
+            // Get current pixel color (direct lighting)
             glm::vec3 directLight = Color::Uint32ToVec(framebuffer[idx]);
             
             // Apply ambient occlusion to ambient lighting
             float aofactor = computeSSAO(x, y, scene.camera);
-            glm::vec3 ambient = gBufferAlbedo[idx] * 0.1f * aofactor;
+            glm::vec3 ambient = gBufferAlbedo[idx] * ambientIntensity * aofactor;
             
-            // Combine direct lighting, ambient with AO, and indirect lighting
-            glm::vec3 finalColor = directLight + ambient + indirectLight * 0.5f;
+            // Combine direct lighting, ambient with AO, and indirect lighting with intensity controls
+            glm::vec3 finalColor = directLight * directLightIntensity + 
+                                 ambient * ssaoIntensity + 
+                                 indirectLight * ssgiIntensity;
             finalColor = glm::clamp(finalColor, 0.0f, 1.0f);
-            
-            framebuffer[idx] = Color::VecToUint32(glm::vec3(finalColor));
-            // glm::vec3 gcolor = gBufferPosition[idx] * 0.5f + 0.5f;
-            // framebuffer[idx] = Color::VecToUint32(gcolor);
+            framebuffer[idx] = Color::VecToUint32(finalColor);
         }
     }
     

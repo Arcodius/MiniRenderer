@@ -34,12 +34,18 @@ public:
 	
 	// SSAO/SSGI settings
 	static constexpr int SSAO_SAMPLES = 16;
-	static constexpr float SSAO_RADIUS = 0.1f;
+	static constexpr float SSAO_RADIUS = 0.2f;
 	static constexpr float SSAO_BIAS = 0.005f;
 	static constexpr int SSGI_SAMPLES = 16;
 	static constexpr float SSGI_RADIUS = 1.0f;
 	std::vector<glm::vec3> ssaoKernel;
 	std::vector<glm::vec3> ssaoNoise;
+	
+	// Lighting intensity controls
+	float directLightIntensity = 1.0f;
+	float ssaoIntensity = 4.f;
+	float ssgiIntensity = 2.f;
+	float ambientIntensity = 0.1f;
 	
 	// Shadow mapping
 	static constexpr int SHADOW_MAP_SIZE = 256;
