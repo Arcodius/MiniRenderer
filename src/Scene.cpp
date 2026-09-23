@@ -43,7 +43,9 @@ bool Scene::intersect(const Ray& ray, Intersection& closestIsect) const {
     bool hit = false;
 
     // 创建一个栈来模拟递归遍历（非递归更适合性能）
-    std::vector<int> nodeStack;
+    thread_local std::vector<int> nodeStack;
+    nodeStack.clear();
+    if (nodeStack.capacity() < 64) nodeStack.reserve(64);
     nodeStack.push_back(rootNodeIdx); // 从根节点开始 (假设根节点索引是 0)
 
     while (!nodeStack.empty()) {
@@ -109,7 +111,9 @@ bool Scene::hasIntersection(const Ray& ray) const {
         return false;
     }
 
-    std::vector<int> nodeStack;
+    thread_local std::vector<int> nodeStack;
+    nodeStack.clear();
+    if (nodeStack.capacity() < 64) nodeStack.reserve(64);
     nodeStack.push_back(rootNodeIdx);
 
     while (!nodeStack.empty()) {

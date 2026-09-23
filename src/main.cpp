@@ -94,10 +94,10 @@ int main(int argc, char* argv[])
     Uint64 lastTick = SDL_GetPerformanceCounter();
     float deltaTime = 0.016f;
     while(keep_going){
-        // 在主循环内部，渲染循环的开始处
-        // Uint64 currentTick = SDL_GetPerformanceCounter();
-        // deltaTime = (float)(currentTick - lastTick) / (float)SDL_GetPerformanceFrequency();
-        // lastTick = currentTick;
+        Uint64 currentTick = SDL_GetPerformanceCounter();
+        deltaTime = static_cast<float>(currentTick - lastTick) /
+                    static_cast<float>(SDL_GetPerformanceFrequency());
+        lastTick = currentTick;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT ||
             (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)) {
@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
                 useRayTracing = !useRayTracing; // Toggle rendering mode
             }
 
-            if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_O) {
+            if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_G) {
                 useGI = !useGI;
             }
 
@@ -176,6 +176,7 @@ int main(int argc, char* argv[])
         
 
         // 1. 渲染到 framebuffer
+        const Uint64 renderStart = SDL_GetPerformanceCounter();
         if (useRayTracing) {
             renderer.renderRayTracing(scene);
         } else {
@@ -184,6 +185,9 @@ int main(int argc, char* argv[])
             else
                 renderer.renderWithSSAO(scene);
         }
+        const float renderTimeMs = 1000.0f *
+            static_cast<float>(SDL_GetPerformanceCounter() - renderStart) /
+            static_cast<float>(SDL_GetPerformanceFrequency());
 
         // 2. 上传 framebuffer 到 SDL_Texture
         SDL_UpdateTexture(texture, nullptr, renderer.framebuffer.data(), width * sizeof(uint32_t));
@@ -227,6 +231,8 @@ int main(int argc, char* argv[])
             ImGui::Text("Rendering Mode: %s | GI: %s", 
                 useRayTracing ? "Ray Tracing" : "Rasterization",
                 useGI ? "ON" : "OFF");
+            ImGui::SameLine();
+            ImGui::Text("| Render: %.1f ms", renderTimeMs);
             
             ImGui::SameLine();
             ImGui::SetCursorPosX(ImGui::GetWindowSize().x - 250); // 偏移到右边
@@ -242,11 +248,11 @@ int main(int argc, char* argv[])
                 ImGui::Columns(2, "LightingControls", false);
                 
                 ImGui::SliderFloat("Direct Light", &renderer.directLightIntensity, 0.0f, 2.0f, "%.2f");
-                ImGui::SliderFloat("SSAO", &renderer.ssaoIntensity, 0.0f, 2.0f, "%.2f");
+                ImGui::SliderFloat("SSAO", &renderer.ssaoIntensity, 0.0f, 1.0f, "%.2f");
                 
                 ImGui::NextColumn();
                 
-                ImGui::SliderFloat("SSGI", &renderer.ssgiIntensity, 0.0f, 1.0f, "%.2f");
+                ImGui::SliderFloat("SSGI (experimental)", &renderer.ssgiIntensity, 0.0f, 1.0f, "%.2f");
                 ImGui::SliderFloat("Ambient", &renderer.ambientIntensity, 0.0f, 0.5f, "%.3f");
                 
                 ImGui::Columns(1); // 恢复单列

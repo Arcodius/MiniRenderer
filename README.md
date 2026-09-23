@@ -30,6 +30,11 @@ Implement a 3D scene renderer without relying on open-source rendering tools (e.
 
 ### **Build Instructions**
 
+CMake downloads the pinned GLM, Dear ImGui, and SDL3 dependencies automatically into
+the build directory. No manual download or Git submodule initialization is
+needed for those libraries. An internet connection is required on the first
+configure; later configures reuse the downloaded sources.
+
 #### **1. Create and Navigate to the Build Directory**  
 
 To initialize the build environment, execute the following commands in your terminal:  

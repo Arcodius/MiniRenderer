@@ -17,13 +17,6 @@
 void Renderer::clearBuffers() {
 	framebuffer.clear(0xFF000000);
 	zbuffer.clear(std::numeric_limits<float>::max());  // Clear depth buffer to max depth
-	shadowMap.clear(std::numeric_limits<float>::max()); // Clear shadow map to max depth
-	
-	// Clear G-Buffer
-	gBufferPosition.clear(glm::vec3(0.0f));
-	gBufferNormal.clear(glm::vec3(0.0f));
-	gBufferAlbedo.clear(glm::vec3(0.0f));
-	gBufferColor.clear(0xFF000000);
 }
 // w is world position
 bool Renderer::_isBackFacingViewSpace(
@@ -35,12 +28,6 @@ bool Renderer::_isBackFacingViewSpace(
     return glm::dot(faceNormal, toCamera) < 0.0f; // 背向摄像机则为 true
 }
 
-
-bool Renderer::_insideTriangle(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c) {
-    return (glm::cross(b - a, p - a).z >= 0.0f &&
-            glm::cross(c - b, p - b).z >= 0.0f &&
-            glm::cross(a - c, p - c).z >= 0.0f);
-}
 
 std::vector<glm::vec3> Renderer::clipToScreen(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, int screenWidth, int screenHeight) {
     std::vector<glm::vec3> vertices = {v0, v1, v2};
@@ -118,21 +105,22 @@ void Renderer::_drawTrianglePhong(
     for (int y = minY; y <= maxY; ++y) {
         for (int x = minX; x <= maxX; ++x) {
             glm::vec3 p(x + 0.5f, y + 0.5f, 0.0f);
-            if (_insideTriangle(p, s0, s1, s2)) {
-                float a = (glm::cross(s1 - p, s2 - p)).z / area;
-                float b = (glm::cross(s2 - p, s0 - p)).z / area;
-                float c = (glm::cross(s0 - p, s1 - p)).z / area;
+            float a = (glm::cross(s1 - p, s2 - p)).z / area;
+            float b = (glm::cross(s2 - p, s0 - p)).z / area;
+            float c = (glm::cross(s0 - p, s1 - p)).z / area;
+            if (a >= 0.0f && b >= 0.0f && c >= 0.0f) {
 
                 float z = a * s0.z + b * s1.z + c * s2.z;
                 int idx = y * screenWidth + x;
                 
                 if (z < zbuffer[idx]) {
                     zbuffer[idx] = z;
-                    glm::vec3 pos = v0.worldPos * a + v1.worldPos * b + v2.worldPos * c;
-                    glm::vec3 normal = glm::normalize(n0_w * a + n1_w * b + n2_w * c);
-
                     // 透视修正插值 uv
                     float invW = a * invW0 + b * invW1 + c * invW2;
+                    glm::vec3 pos = (v0.worldPos * (a * invW0) +
+                                     v1.worldPos * (b * invW1) +
+                                     v2.worldPos * (c * invW2)) / invW;
+                    glm::vec3 normal = glm::normalize((n0_w * a + n1_w * b + n2_w * c) / invW);
                     glm::vec2 uv = (a * uv0_w + b * uv1_w + c * uv2_w) / invW;
                     glm::vec3 baseColor = material->sampleBaseColor(uv);
                     glm::vec3 color = glm::vec3(0.0f);
@@ -148,7 +136,8 @@ void Renderer::_drawTrianglePhong(
                         if (light->getDistance(pos) < EPSILON) continue; // 避免光源距离过近
                         
                         glm::vec3 lightContribution = material->computePhong(
-                            normal, uv, camera.getPosition() - pos, light->getDirection(pos), light->getColor());
+                            normal, uv, glm::normalize(camera.getPosition() - pos),
+                            light->getDirection(pos), light->getColor());
                         
                         // 只对第一个光源应用阴影
                         if (lightIdx == 0) {
@@ -206,7 +195,8 @@ void Renderer::clip_triangle_against_near_plane(
     std::vector<VertexShaderOutput> outside_points;
 
     for (int i = 0; i < 3; ++i) {
-        if (vertices[i].clipPos.w >= EPSILON) {
+        // OpenGL homogeneous near plane: z >= -w.
+        if (vertices[i].clipPos.z + vertices[i].clipPos.w >= EPSILON) {
             inside_points.push_back(vertices[i]);
         } else {
             outside_points.push_back(vertices[i]);
@@ -221,8 +211,11 @@ void Renderer::clip_triangle_against_near_plane(
         const VertexShaderOutput& out_v0 = outside_points[0];
         const VertexShaderOutput& out_v1 = outside_points[1];
 
-        float t0 = (EPSILON - in_v.clipPos.w) / (out_v0.clipPos.w - in_v.clipPos.w);
-        float t1 = (EPSILON - in_v.clipPos.w) / (out_v1.clipPos.w - in_v.clipPos.w);
+        const float inDistance = in_v.clipPos.z + in_v.clipPos.w - EPSILON;
+        const float outDistance0 = out_v0.clipPos.z + out_v0.clipPos.w - EPSILON;
+        const float outDistance1 = out_v1.clipPos.z + out_v1.clipPos.w - EPSILON;
+        float t0 = inDistance / (inDistance - outDistance0);
+        float t1 = inDistance / (inDistance - outDistance1);
 
         VertexShaderOutput new_v0 = interpolate(in_v, out_v0, t0);
         VertexShaderOutput new_v1 = interpolate(in_v, out_v1, t1);
@@ -234,8 +227,11 @@ void Renderer::clip_triangle_against_near_plane(
         const VertexShaderOutput& in_v1 = inside_points[1];
         const VertexShaderOutput& out_v = outside_points[0];
 
-        float t0 = (EPSILON - in_v0.clipPos.w) / (out_v.clipPos.w - in_v0.clipPos.w);
-        float t1 = (EPSILON - in_v1.clipPos.w) / (out_v.clipPos.w - in_v1.clipPos.w);
+        const float outDistance = out_v.clipPos.z + out_v.clipPos.w - EPSILON;
+        const float inDistance0 = in_v0.clipPos.z + in_v0.clipPos.w - EPSILON;
+        const float inDistance1 = in_v1.clipPos.z + in_v1.clipPos.w - EPSILON;
+        float t0 = inDistance0 / (inDistance0 - outDistance);
+        float t1 = inDistance1 / (inDistance1 - outDistance);
 
         VertexShaderOutput new_v0 = interpolate(in_v0, out_v, t0);
         VertexShaderOutput new_v1 = interpolate(in_v1, out_v, t1);
@@ -245,7 +241,7 @@ void Renderer::clip_triangle_against_near_plane(
     }
 }
 
-void Renderer::render(Scene scene) {
+void Renderer::render(Scene& scene) {
     clearBuffers();
     
     // 首先渲染shadow map（只为第一个光源，可以扩展为多个）
@@ -267,7 +263,6 @@ void Renderer::render(Scene scene) {
         const std::vector<Vertex>& vertices = mesh.vertices;
         const std::vector<unsigned int>& indices = mesh.indices;
 
-        #pragma omp parallel for
         for (size_t i = 0; i < indices.size(); i += 3) {
             VertexShaderOutput v0 = vertexShader(vertices[indices[i]], modelMatrix, normalMatrix, mvp);
             VertexShaderOutput v1 = vertexShader(vertices[indices[i+1]], modelMatrix, normalMatrix, mvp);
@@ -288,6 +283,7 @@ void Renderer::render(Scene scene) {
         }
     }
     // gamma correction
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < framebuffer.width * framebuffer.height; ++i) {
         uint32_t color = framebuffer[i];
         glm::vec3 linearColor = Color::Uint32ToVec(color);
@@ -298,16 +294,15 @@ void Renderer::render(Scene scene) {
     }
 }
 
-void Renderer::renderRayTracing(Scene scene) {
+void Renderer::renderRayTracing(Scene& scene) {
     clearBuffers();
     // save mode only!
     // if (firstFrameSaved){
     //     exit(0);
     // }
     // Iterate over each pixel in the framebuffer
+    #pragma omp parallel for schedule(static)
     for (int y = 0; y < screenHeight; ++y) {
-        std::fprintf(stderr, "\rRendering... %5.2f%%", 100.0 * y / (screenHeight - 1));
-
         for (int x = 0; x < screenWidth; ++x) {
             glm::vec3 accumulatedColor(0.0f);
 
@@ -339,8 +334,6 @@ void Renderer::renderRayTracing(Scene scene) {
             framebuffer.setPixel(x, y, Color::VecToUint32(finalColor));
         }
     }
-    std::fprintf(stderr, "\nDone.\n");
-
     // if (!firstFrameSaved) {
     //     // Save the first frame to a file
     //     ResourceManager::saveFramebufferToBMP("ray_tracing_output.bmp", getBuffer());
@@ -644,10 +637,10 @@ void Renderer::_drawTriangleDepthOnly(
     for (int y = minY; y <= maxY; ++y) {
         for (int x = minX; x <= maxX; ++x) {
             glm::vec3 p(x + 0.5f, y + 0.5f, 0.0f);
-            if (_insideTriangle(p, s0, s1, s2)) {
-                float a = (glm::cross(s1 - p, s2 - p)).z / area;
-                float b = (glm::cross(s2 - p, s0 - p)).z / area;
-                float c = (glm::cross(s0 - p, s1 - p)).z / area;
+            float a = (glm::cross(s1 - p, s2 - p)).z / area;
+            float b = (glm::cross(s2 - p, s0 - p)).z / area;
+            float c = (glm::cross(s0 - p, s1 - p)).z / area;
+            if (a >= 0.0f && b >= 0.0f && c >= 0.0f) {
 
                 float z = a * s0.z + b * s1.z + c * s2.z;
                 int idx = y * SHADOW_MAP_SIZE + x;
@@ -723,6 +716,10 @@ Renderer::Renderer(int width, int height){
     gBufferNormal = Buffer<glm::vec3>(width, height);
     gBufferAlbedo = Buffer<glm::vec3>(width, height);
     gBufferColor = Buffer<uint32_t>(width, height);
+    const int aoWidth = (width + SSAO_DOWNSAMPLE - 1) / SSAO_DOWNSAMPLE;
+    const int aoHeight = (height + SSAO_DOWNSAMPLE - 1) / SSAO_DOWNSAMPLE;
+    ssaoBuffer = Buffer<float>(aoWidth, aoHeight);
+    ssaoBlurBuffer = Buffer<float>(aoWidth, aoHeight);
     
     // Initialize SSAO/SSGI
     generateSSAOKernel();
@@ -778,23 +775,12 @@ void Renderer::generateSSAONoise() {
     }
 }
 
-void Renderer::renderGBuffer(Scene scene) {
-    // Clear G-Buffer
-    gBufferPosition.clear(glm::vec3(0.0f));
-    gBufferNormal.clear(glm::vec3(0.0f));
-    gBufferAlbedo.clear(glm::vec3(0.0f));
-    gBufferColor.clear(0xFF000000);
-    
-    scene.camera.setAspect(static_cast<float>(screenWidth) / screenHeight);
-    glm::mat4 projectionMatrix = scene.camera.getProjectionMatrix();
-    glm::mat4 viewMatrix = scene.camera.getViewMatrix();
-    glm::mat4 viewProjectionMatrix = projectionMatrix * viewMatrix;
-    
+void Renderer::renderGBuffer(Scene& scene) {
     for (const auto& objectPtr : scene.objects) {
         Object& object = *objectPtr;
         glm::mat4 modelMatrix = object.getMatrix();
         glm::mat4 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelMatrix)));
-        glm::mat4 mvp = viewProjectionMatrix * modelMatrix;
+        glm::mat4 mvp = frameViewProjectionMatrix * modelMatrix;
 
         const Mesh& mesh = object.getMesh();
         const std::vector<Vertex>& vertices = mesh.vertices;
@@ -849,10 +835,10 @@ void Renderer::_drawTriangleGBuffer(
     for (int y = minY; y <= maxY; ++y) {
         for (int x = minX; x <= maxX; ++x) {
             glm::vec3 p(x + 0.5f, y + 0.5f, 0.0f);
-            if (_insideTriangle(p, s0, s1, s2)) {
-                float a = (glm::cross(s1 - p, s2 - p)).z / area;
-                float b = (glm::cross(s2 - p, s0 - p)).z / area;
-                float c = (glm::cross(s0 - p, s1 - p)).z / area;
+            float a = (glm::cross(s1 - p, s2 - p)).z / area;
+            float b = (glm::cross(s2 - p, s0 - p)).z / area;
+            float c = (glm::cross(s0 - p, s1 - p)).z / area;
+            if (a >= 0.0f && b >= 0.0f && c >= 0.0f) {
 
                 float z = a * s0.z + b * s1.z + c * s2.z;
                 int idx = y * screenWidth + x;
@@ -861,10 +847,11 @@ void Renderer::_drawTriangleGBuffer(
                     zbuffer[idx] = z;
                     
                     // Store G-Buffer data
-                    glm::vec3 worldPos = v0.worldPos * a + v1.worldPos * b + v2.worldPos * c;
-                    glm::vec3 normal = glm::normalize(n0_w * a + n1_w * b + n2_w * c);
-                    
                     float invW = a * invW0 + b * invW1 + c * invW2;
+                    glm::vec3 worldPos = (v0.worldPos * (a * invW0) +
+                                          v1.worldPos * (b * invW1) +
+                                          v2.worldPos * (c * invW2)) / invW;
+                    glm::vec3 normal = glm::normalize((n0_w * a + n1_w * b + n2_w * c) / invW);
                     glm::vec2 uv = (a * uv0_w + b * uv1_w + c * uv2_w) / invW;
                     glm::vec3 albedo = material->sampleBaseColor(uv);
                     
@@ -877,11 +864,7 @@ void Renderer::_drawTriangleGBuffer(
     }
 }
 
-float Renderer::computeSSAO(int x, int y, Camera& camera) {
-    // [优化] 将所有不变的计算移到函数顶部
-    const glm::mat4 viewMatrix = camera.getViewMatrix();
-    const glm::mat4 projMatrix = camera.getProjectionMatrix();
-
+float Renderer::computeSSAO(int x, int y) const {
     int idx = y * screenWidth + x;
     
     // 从 G-Buffer 获取世界空间数据
@@ -893,16 +876,24 @@ float Renderer::computeSSAO(int x, int y, Camera& camera) {
     }
 
     // [修正] 将原始片段的位置和法线转换到视图空间
-    const glm::vec3 fragPos_view = glm::vec3(viewMatrix * glm::vec4(fragPos_world, 1.0));
-    const glm::vec3 normal_view = glm::normalize(glm::mat3(viewMatrix) * normal_world);
+    const glm::vec3 fragPos_view = glm::vec3(frameViewMatrix * glm::vec4(fragPos_world, 1.0));
+    const glm::vec3 normal_view = glm::normalize(glm::mat3(frameViewMatrix) * normal_world);
     
     // 在视图空间中创建 TBN 矩阵，这样就不用在循环里反复转换了
-    glm::vec3 randomVec = getRandomVector(x, y); // 假设 randomVec 在 [0,1] 范围
-    glm::vec3 tangent_view = glm::normalize(randomVec - normal_view * glm::dot(randomVec, normal_view));
+    glm::vec3 randomVec = getRandomVector(x / SSAO_DOWNSAMPLE, y / SSAO_DOWNSAMPLE);
+    glm::vec3 tangentCandidate = randomVec - normal_view * glm::dot(randomVec, normal_view);
+    if (glm::dot(tangentCandidate, tangentCandidate) < EPSILON) {
+        tangentCandidate = glm::cross(normal_view, glm::vec3(0.0f, 1.0f, 0.0f));
+        if (glm::dot(tangentCandidate, tangentCandidate) < EPSILON) {
+            tangentCandidate = glm::cross(normal_view, glm::vec3(1.0f, 0.0f, 0.0f));
+        }
+    }
+    glm::vec3 tangent_view = glm::normalize(tangentCandidate);
     glm::vec3 bitangent_view = glm::cross(normal_view, tangent_view);
     glm::mat3 TBN_view = glm::mat3(tangent_view, bitangent_view, normal_view);
     
     float occlusion = 0.0f;
+    int validSamples = 0;
     for (int i = 0; i < SSAO_SAMPLES; ++i) {
         // [修正] 在视图空间中生成采样点
         // ssaoKernel[i] 是在切线空间中定义的，Z朝上
@@ -911,20 +902,27 @@ float Renderer::computeSSAO(int x, int y, Camera& camera) {
         samplePos_view = fragPos_view + samplePos_view * SSAO_RADIUS;
         
         // [修正] 将视图空间的采样点投影到屏幕空间
-        glm::vec4 offset_clip = projMatrix * glm::vec4(samplePos_view, 1.0f);
+        glm::vec4 offset_clip = frameProjectionMatrix * glm::vec4(samplePos_view, 1.0f);
+        if (glm::abs(offset_clip.w) < EPSILON) {
+            continue;
+        }
         glm::vec3 offset_ndc = glm::vec3(offset_clip) / offset_clip.w;
         glm::vec2 sample_uv = glm::vec2(offset_ndc.x, offset_ndc.y) * 0.5f + 0.5f;
         
         // 采样深度
-        if (sample_uv.x >= 0.0f && sample_uv.x <= 1.0f && sample_uv.y >= 0.0f && sample_uv.y <= 1.0f) {
+        if (sample_uv.x >= 0.0f && sample_uv.x < 1.0f && sample_uv.y > 0.0f && sample_uv.y <= 1.0f) {
             int sampleX = static_cast<int>(sample_uv.x * screenWidth);
             int sampleY = static_cast<int>((1.f - sample_uv.y) * screenHeight);
             
             int sampleIdx = sampleY * screenWidth + sampleX;
+            if (glm::length(gBufferNormal[sampleIdx]) < EPSILON) {
+                continue;
+            }
+            ++validSamples;
             glm::vec3 occluderPos_world = gBufferPosition[sampleIdx];
             
             // [修正] 将采样的遮挡点也转换到视图空间
-            glm::vec3 occluderPos_view = glm::vec3(viewMatrix * glm::vec4(occluderPos_world, 1.0));
+            glm::vec3 occluderPos_view = glm::vec3(frameViewMatrix * glm::vec4(occluderPos_world, 1.0));
 
             // [修正] 在视图空间 Z 轴上进行深度比较
             // occluderPos_view.z 是G-Buffer中记录的实际场景深度
@@ -933,16 +931,18 @@ float Renderer::computeSSAO(int x, int y, Camera& camera) {
             // 如果是左手坐标系（DirectX默认），则用 <
             if (occluderPos_view.z > samplePos_view.z + SSAO_BIAS) {
                 // 为了防止背景或远处的物体对近处物体造成错误遮挡，可以加一个范围检查
-                float rangeCheck = (glm::abs(fragPos_view.z - occluderPos_view.z) < SSAO_RADIUS) ? 1.0f : 0.0f;
+                const float depthDelta = glm::abs(fragPos_view.z - occluderPos_view.z);
+                float rangeCheck = glm::smoothstep(
+                    0.0f, 1.0f, SSAO_RADIUS / (depthDelta + EPSILON));
                 occlusion += rangeCheck;
             }
         }
     }
     
-    occlusion = 1.0f - (occlusion / SSAO_SAMPLES);
+    occlusion = 1.0f - (occlusion / static_cast<float>(std::max(validSamples, 1)));
     return occlusion;
 }
-glm::vec3 Renderer::computeSSGI(int x, int y, Camera& camera) {
+glm::vec3 Renderer::computeSSGI(int x, int y) const {
     int idx = y * screenWidth + x;
     
     glm::vec3 fragPos = gBufferPosition[idx];
@@ -962,12 +962,10 @@ glm::vec3 Renderer::computeSSGI(int x, int y, Camera& camera) {
         glm::vec3 sampleDir = TBN * ssaoKernel[i % SSAO_SAMPLES];
         glm::vec3 samplePos = fragPos + sampleDir * SSGI_RADIUS;
         
-        // Project to screen space
-        glm::mat4 viewMatrix = camera.getViewMatrix();
-        glm::mat4 projMatrix = camera.getProjectionMatrix();
-        glm::mat4 viewProjMatrix = projMatrix * viewMatrix;
-        
-        glm::vec4 offset = viewProjMatrix * glm::vec4(samplePos, 1.0f);
+        glm::vec4 offset = frameViewProjectionMatrix * glm::vec4(samplePos, 1.0f);
+        if (glm::abs(offset.w) < EPSILON) {
+            continue;
+        }
         glm::vec3 offsetXYZ = glm::vec3(offset) / offset.w;
         offsetXYZ = offsetXYZ * 0.5f + 0.5f;
         
@@ -995,10 +993,73 @@ glm::vec3 Renderer::computeSSGI(int x, int y, Camera& camera) {
     return indirectLight / float(SSGI_SAMPLES);
 }
 
-glm::vec3 Renderer::getRandomVector(int x, int y) {
+glm::vec3 Renderer::getRandomVector(int x, int y) const {
     int noiseX = x % 4;
     int noiseY = y % 4;
     return ssaoNoise[noiseY * 4 + noiseX];
+}
+
+void Renderer::blurSSAO() {
+    #pragma omp parallel for schedule(static)
+    for (int y = 0; y < ssaoBuffer.height; ++y) {
+        for (int x = 0; x < ssaoBuffer.width; ++x) {
+            const int fullX = std::min(x * SSAO_DOWNSAMPLE + SSAO_DOWNSAMPLE / 2, screenWidth - 1);
+            const int fullY = std::min(y * SSAO_DOWNSAMPLE + SSAO_DOWNSAMPLE / 2, screenHeight - 1);
+            const int centerIdx = fullY * screenWidth + fullX;
+            const glm::vec3 centerNormal = gBufferNormal[centerIdx];
+
+            if (glm::length(centerNormal) < EPSILON) {
+                ssaoBlurBuffer(x, y) = 1.0f;
+                continue;
+            }
+
+            const float centerDepth = glm::vec3(
+                frameViewMatrix * glm::vec4(gBufferPosition[centerIdx], 1.0f)).z;
+            float weightedAO = 0.0f;
+            float totalWeight = 0.0f;
+
+            for (int oy = -1; oy <= 1; ++oy) {
+                const int sy = std::clamp(y + oy, 0, ssaoBuffer.height - 1);
+                for (int ox = -1; ox <= 1; ++ox) {
+                    const int sx = std::clamp(x + ox, 0, ssaoBuffer.width - 1);
+                    const int sampleFullX = std::min(sx * SSAO_DOWNSAMPLE + SSAO_DOWNSAMPLE / 2, screenWidth - 1);
+                    const int sampleFullY = std::min(sy * SSAO_DOWNSAMPLE + SSAO_DOWNSAMPLE / 2, screenHeight - 1);
+                    const int sampleIdx = sampleFullY * screenWidth + sampleFullX;
+                    const glm::vec3 sampleNormal = gBufferNormal[sampleIdx];
+                    if (glm::length(sampleNormal) < EPSILON) {
+                        continue;
+                    }
+
+                    const float sampleDepth = glm::vec3(
+                        frameViewMatrix * glm::vec4(gBufferPosition[sampleIdx], 1.0f)).z;
+                    const float normalWeight = glm::max(glm::dot(centerNormal, sampleNormal), 0.0f);
+                    const float depthWeight = std::exp(-glm::abs(centerDepth - sampleDepth) * 24.0f);
+                    const float spatialWeight = (ox == 0 && oy == 0) ? 2.0f : 1.0f;
+                    const float weight = spatialWeight * normalWeight * depthWeight;
+                    weightedAO += ssaoBuffer(sx, sy) * weight;
+                    totalWeight += weight;
+                }
+            }
+
+            ssaoBlurBuffer(x, y) = totalWeight > EPSILON
+                ? weightedAO / totalWeight
+                : ssaoBuffer(x, y);
+        }
+    }
+}
+
+float Renderer::sampleSSAO(int x, int y) const {
+    const float fx = (static_cast<float>(x) + 0.5f) / SSAO_DOWNSAMPLE - 0.5f;
+    const float fy = (static_cast<float>(y) + 0.5f) / SSAO_DOWNSAMPLE - 0.5f;
+    const int x0 = std::clamp(static_cast<int>(std::floor(fx)), 0, ssaoBlurBuffer.width - 1);
+    const int y0 = std::clamp(static_cast<int>(std::floor(fy)), 0, ssaoBlurBuffer.height - 1);
+    const int x1 = std::min(x0 + 1, ssaoBlurBuffer.width - 1);
+    const int y1 = std::min(y0 + 1, ssaoBlurBuffer.height - 1);
+    const float tx = glm::clamp(fx - std::floor(fx), 0.0f, 1.0f);
+    const float ty = glm::clamp(fy - std::floor(fy), 0.0f, 1.0f);
+    const float top = glm::mix(ssaoBlurBuffer(x0, y0), ssaoBlurBuffer(x1, y0), tx);
+    const float bottom = glm::mix(ssaoBlurBuffer(x0, y1), ssaoBlurBuffer(x1, y1), tx);
+    return glm::mix(top, bottom, ty);
 }
 
 glm::vec3 Renderer::screenToWorldPosition(float x, float y, float depth, const glm::mat4& invViewProjMatrix) {
@@ -1013,8 +1074,18 @@ glm::vec3 Renderer::screenToWorldPosition(float x, float y, float depth, const g
     return glm::vec3(worldSpacePos) / worldSpacePos.w;
 }
 
-void Renderer::renderWithSSAO(Scene scene) {
+void Renderer::renderWithSSAO(Scene& scene) {
     clearBuffers();
+
+    gBufferPosition.clear(glm::vec3(0.0f));
+    gBufferNormal.clear(glm::vec3(0.0f));
+    gBufferAlbedo.clear(glm::vec3(0.0f));
+    gBufferColor.clear(0xFF000000);
+
+    scene.camera.setAspect(static_cast<float>(screenWidth) / screenHeight);
+    frameViewMatrix = scene.camera.getViewMatrix();
+    frameProjectionMatrix = scene.camera.getProjectionMatrix();
+    frameViewProjectionMatrix = frameProjectionMatrix * frameViewMatrix;
     
     // First pass: Render shadow map
     if (!scene.lights.empty()) {
@@ -1026,6 +1097,7 @@ void Renderer::renderWithSSAO(Scene scene) {
     
     // Third pass: Direct lighting with G-Buffer data
     // Instead of re-rendering geometry, compute lighting directly from G-Buffer
+    #pragma omp parallel for schedule(static)
     for (int y = 0; y < screenHeight; ++y) {
         for (int x = 0; x < screenWidth; ++x) {
             int idx = y * screenWidth + x;
@@ -1042,7 +1114,8 @@ void Renderer::renderWithSSAO(Scene scene) {
             glm::vec3 directLight(0.0f);
             
             // Compute direct lighting for each light
-            for (const auto& light : scene.lights) {
+            for (size_t lightIndex = 0; lightIndex < scene.lights.size(); ++lightIndex) {
+                const auto& light = scene.lights[lightIndex];
                 if (light->getDistance(worldPos) < EPSILON) continue;
                 
                 glm::vec3 lightDir = light->getDirection(worldPos);
@@ -1051,7 +1124,7 @@ void Renderer::renderWithSSAO(Scene scene) {
                 
                 // Apply shadow
                 float shadowFactor = 1.0f;
-                if (!scene.lights.empty()) {
+                if (lightIndex == 0) {
                     shadowFactor = sampleShadowMap(worldPos);
                 }
                 
@@ -1075,7 +1148,19 @@ void Renderer::renderWithSSAO(Scene scene) {
         }
     }
     
-    // Fourth pass: Apply SSAO and SSGI
+    // Fourth pass: compute SSAO at half resolution, then apply an edge-aware blur.
+    #pragma omp parallel for schedule(static)
+    for (int y = 0; y < ssaoBuffer.height; ++y) {
+        for (int x = 0; x < ssaoBuffer.width; ++x) {
+            const int fullX = std::min(x * SSAO_DOWNSAMPLE + SSAO_DOWNSAMPLE / 2, screenWidth - 1);
+            const int fullY = std::min(y * SSAO_DOWNSAMPLE + SSAO_DOWNSAMPLE / 2, screenHeight - 1);
+            ssaoBuffer(x, y) = computeSSAO(fullX, fullY);
+        }
+    }
+    blurSSAO();
+
+    // Fifth pass: combine direct light, ambient light, AO and optional experimental SSGI.
+    #pragma omp parallel for schedule(static)
     for (int y = 0; y < screenHeight; ++y) {
         for (int x = 0; x < screenWidth; ++x) {
             int idx = y * screenWidth + x;
@@ -1085,19 +1170,22 @@ void Renderer::renderWithSSAO(Scene scene) {
                 continue;
             }
             
-            // Compute SSGI
-            glm::vec3 indirectLight = computeSSGI(x, y, scene.camera);
+            glm::vec3 indirectLight(0.0f);
+            if (ssgiIntensity > EPSILON) {
+                indirectLight = computeSSGI(x, y);
+            }
             
             // Get current pixel color (direct lighting)
             glm::vec3 directLight = Color::Uint32ToVec(framebuffer[idx]);
             
             // Apply ambient occlusion to ambient lighting
-            float aofactor = computeSSAO(x, y, scene.camera);
-            glm::vec3 ambient = gBufferAlbedo[idx] * ambientIntensity * aofactor;
+            const float rawAO = sampleSSAO(x, y);
+            const float aoFactor = glm::mix(1.0f, rawAO, glm::clamp(ssaoIntensity, 0.0f, 1.0f));
+            glm::vec3 ambient = gBufferAlbedo[idx] * ambientIntensity * aoFactor;
             
             // Combine direct lighting, ambient with AO, and indirect lighting with intensity controls
-            glm::vec3 finalColor = directLight * directLightIntensity + 
-                                 ambient * ssaoIntensity + 
+            glm::vec3 finalColor = directLight * directLightIntensity +
+                                 ambient +
                                  indirectLight * ssgiIntensity;
             finalColor = glm::clamp(finalColor, 0.0f, 1.0f);
             framebuffer[idx] = Color::VecToUint32(finalColor);
@@ -1105,6 +1193,7 @@ void Renderer::renderWithSSAO(Scene scene) {
     }
     
     // Gamma correction (same as original)
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < framebuffer.width * framebuffer.height; ++i) {
         uint32_t color = framebuffer[i];
         glm::vec3 linearColor = Color::Uint32ToVec(color);

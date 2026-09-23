@@ -1,8 +1,8 @@
 #pragma once
 
 #include <random>
-static std::mt19937 generator(std::random_device{}());
-static std::uniform_real_distribution<float> distribution(-0.5f, 0.5f);
+static thread_local std::mt19937 generator(std::random_device{}());
+static thread_local std::uniform_real_distribution<float> distribution(-0.5f, 0.5f);
 
 #include "MyMath.h"
 
